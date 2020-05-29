@@ -1,5 +1,4 @@
 *.jpg
 *.ipynb
-trained_models
 .ipynb_checkpoints
 *.png
