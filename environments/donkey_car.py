@@ -8,26 +8,39 @@ class DonkeyCar:
         self.control = remote_controller.DonkeyRemoteContoller(car, server)
         self.state = self.control.observe()
         self.action = [0, 0]
+        self.throttle = 0.15
 
     def reset(self):
-        self
         self.control.take_action(action=[0, 0])
         time.sleep(1)
         self.state = self.control.observe()
+
+        throttle_input = input("Input throttle. Previous was {}\n".format(self.throttle))
+
+        if throttle_input:
+            try:
+                self.throttle = float(throttle_input)
+            except:
+                pass
+
         return self.state
     
     def step(self, control):
         
+        control[1] = self.throttle
         self.control.take_action(action=control)
+
         time.sleep(0.1)
         obs = self.control.observe()
         self.state = obs
-        return self.state
+        done = self.is_dead()
+
+        return control, self.state, done
 
     def is_dead(self):
-        darkness = len(im[(im > 120) * (im < 130)])
+        darkness = len(self.state[(self.state > 120) * (self.state < 130)])
 
-        if darkness < threshold:
-            return True
+        if darkness < 2500:
+            return 1.0
         else:
-            return False
+            return 0.0

@@ -25,3 +25,4 @@ def image_to_ascii(im, size):
 
     for line in asc:
         print(line)
+

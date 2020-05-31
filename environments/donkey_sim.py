@@ -2,7 +2,7 @@ from donkeycar.gym import remote_controller
 import numpy as np
 import time
 
-class DonkeyCar:
+class DonkeySim:
     
     def __init__(self, car = "kari", server = "mqtt.eclipse.org"):
         self.control = remote_controller.DonkeyRemoteContoller(car, server)
@@ -20,13 +20,15 @@ class DonkeyCar:
         time.sleep(0.1)
         obs = self.control.observe()
         self.state = obs
-        return self.state
+        done = self.is_dead()
+
+        return control, self.state, done
 
     def is_dead(self):
-        darkness = len(im[(im > 120) * (im < 130)])
+        darkness = len(self.state[(self.state > 120) * (self.state < 130)])
 
-        if darkness < threshold:
-            return True
+        if darkness < 2500:
+            return 1.0
         else:
-            return False
+            return 0.0
         

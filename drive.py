@@ -1,10 +1,17 @@
 import argparse
+import datetime
+import time
+
+import torch
+import numpy as np
+from gym import spaces
 
 from models.sac import SAC
 from environments.donkey_car import DonkeyCar
 from environments.donkey_sim import DonkeySim
+from utils.functions import image_to_ascii
 
-from config import STEER_LIMIT_LEFT, STEER_LIMIT_RIGHT, THROTTLE_MAX, THROTTLE_MIN,, MAX_STEERING_DIFF, MAX_EPISODE_STEPS
+from config import STEER_LIMIT_LEFT, STEER_LIMIT_RIGHT, THROTTLE_MAX, THROTTLE_MIN, MAX_STEERING_DIFF, MAX_EPISODE_STEPS, COMMAND_HISTORY_LENGTH, FRAME_STACK, VAE_OUTPUT
 
 parser = argparse.ArgumentParser()
 
@@ -23,10 +30,20 @@ parser.add_argument("--training_steps", help="Number of gradient steps for SAC p
 
 args = parser.parse_args()
 
+sac_params = {
+        "linear_output": (VAE_OUTPUT + 2 + COMMAND_HISTORY_LENGTH * 2) * FRAME_STACK
+,
+        "lr": 0.0003,
+        "target_entropy": -2,
+        "batch_size": 64,
+        "hidden_size": 64
+        
+        }
+
 if args.existing_model:
-    sac = torch.load(args.vae)
+    agent = torch.load(args.vae)
 else:
-    sac = SAC()
+    agent = SAC(sac_params)
 
 vae = torch.load(args.vae)
 
@@ -41,11 +58,103 @@ action_space = spaces.Box(
     high=np.array([STEER_LIMIT_RIGHT, THROTTLE_MAX]), dtype=np.float32)
 
 
-env.reset()
+model_name = "./trained_models/sac/SAC_{}.pth".format(datetime.datetime.today().isoformat())
+
+def enforce_limits(action, prev_steering):
+     var = (THROTTLE_MAX - THROTTLE_MIN) / 2
+     mu = (THROTTLE_MAX + THROTTLE_MIN) / 2
+     
+     steering_min = max(STEER_LIMIT_LEFT, prev_steering - MAX_STEERING_DIFF)
+     steering_max = min(STEER_LIMIT_RIGHT, prev_steering + MAX_STEERING_DIFF)
+     
+     steering = max(steering_min, min(steering_max, action[0]))
+     #print("Prev steering: {:.2f}, Steering min: {:.2f}, Steering max: {:.2f}, Action: {:.2f}, Steering: {:.2f}".format(prev_steering, steering_min, steering_max, action[0], steering))
+     return [steering, action[1] * var + mu]
 
 for e in range(10000):
 
-    if True:
+    
+    episode_reward = 0
+    step = 0
+    done = 0.0
+    episode_buffer = []
+    interrupted = 0
+
+    command_history = np.zeros(2*COMMAND_HISTORY_LENGTH)
+
+    obs = env.reset()
+
+    embedding = vae.embed(obs)
+    action = [0, 0]
+
+    state_action = np.hstack((embedding, action, command_history))
+
+    state = np.hstack([state_action for x in range(FRAME_STACK)])
+
+    while step < MAX_EPISODE_STEPS:
+        try:
+            step += 1
+            t1 = time.time_ns()
+
+            if e < args.random_episodes:
+                action = action_space.sample()
+            else:
+                action = agent.select_action(state[np.newaxis, :])
+
+            limited_action = enforce_limits(action, command_history[0])
+            taken_action, obs, dead = env.step(limited_action)
+
+            done = dead or interrupted
+
+            command_history = np.roll(command_history, 2)
+            command_history[:2] = taken_action
+            
+            reward = 1 if not done else -10
+
+            embedding = vae.embed(obs)
+            state_action = np.hstack((embedding, action, command_history))
+
+            next_state = np.hstack([state_action, state[:(VAE_OUTPUT + 2) * (FRAME_STACK - 1)]])
+
+            agent.push_buffer([state, action, [reward], next_state, [float (not done)]])
+
+
+            episode_reward += reward
+            t2 = time.time_ns()
+
+            image_to_ascii(obs, 20)
+
+            print("Episode: {}, Step: {}, Reward: {:.2f}, Episode reward: {:.2f}, Time: {:.2f}".format(e, step, reward, episode_reward, (t2 - t1) / 1e6))
+            t1 = t2
+
+            state = next_state
+
+            if done:
+                break
+
+        except KeyboardInterrupt:
+            interrupted = 1
+            continue
+
+    env.step((0,0))
+    time.sleep(1)
+    env.step((0,0.01))
+
+    print("Traning SAC")
+    if e >= args.random_episodes:
+        for i in range(args.training_steps):
+            agent.update_parameters()
+
+    print("Saving model")
+    torch.save(agent, model_name)
+
+
+
+
+
+            
+
+    
         
 
 
