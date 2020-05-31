@@ -102,6 +102,7 @@ class VAE:
         self.loss = nn.MSELoss()
 
         self.images = []
+        self.test_images = []
    
     def vae_loss(self, true, pred, mu, log_sigma):
         #print(true.shape)
@@ -131,9 +132,11 @@ class VAE:
         sample = random.sample(self.images, sample_size)
        
         loader = torch.utils.data.DataLoader([torch.Tensor(x).to(device) for x in sample], batch_size = self.batch_size, shuffle=True)
-        
+        test_loader = torch.utils.data.DataLoader([torch.Tensor(x).to(device) for x in self.test_images])
+
         train_loss = 0.0
         recon_loss = 0.0
+        test_loss = 0.0
 
         for i, inputs in enumerate(loader):
             
@@ -161,8 +164,19 @@ class VAE:
             
             train_loss += loss.item()
             recon_loss += recon.item()
-        
-        return train_loss / i, recon_loss / i
+
+        if len(self.test_images) > 0:
+            for i, inputs in enumerate(test_loader):
+
+                with torch.no_grad():
+                    target = inputs.clone() 
+                    mu, log_sigma = self.encoder(inputs)
+                    pred = self.decoder(self.sample_z(mu, log_sigma))
+                    
+                    recon, kl = self.vae_loss(target, pred, mu, log_sigma)
+                    test_loss += recon + kl
+
+        return train_loss / len(self.images), recon_loss / len(self.images), test_loss  / len(test_loader)
         
 
     def update_ae(self):
@@ -208,5 +222,10 @@ class VAE:
     def add_image(self, im):
 
         self.images.append(self.process_image(im)[0,:])
+
+    def add_test_image(self, im):
+
+        self.test_images.append(self.process_image(im)[0,:])
+        
 
 
