@@ -54,9 +54,9 @@ for i, file in enumerate(files):
 
 
 random.shuffle(images)
-test_images = images[:5]
+test_images = images[:args.test_size]
 
-for i in images[5:]:
+for i in images[args.test_size:]:
     vae.add_image(i)
 
 for i in test_images:

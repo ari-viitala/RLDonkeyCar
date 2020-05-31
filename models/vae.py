@@ -132,7 +132,7 @@ class VAE:
         sample = random.sample(self.images, sample_size)
        
         loader = torch.utils.data.DataLoader([torch.Tensor(x).to(device) for x in sample], batch_size = self.batch_size, shuffle=True)
-        test_loader = torch.utils.data.DataLoader([torch.Tensor(x).to(device) for x in self.test_images])
+        test_loader = torch.utils.data.DataLoader([torch.Tensor(x).to(device) for x in self.test_images], batch_size = self.batch_size)
 
         train_loss = 0.0
         recon_loss = 0.0
@@ -176,7 +176,7 @@ class VAE:
                     recon, kl = self.vae_loss(target, pred, mu, log_sigma)
                     test_loss += recon + kl
 
-        return train_loss / len(self.images), recon_loss / len(self.images), test_loss  / len(test_loader)
+        return train_loss / len(self.images), recon_loss / len(self.images), test_loss  / len(self.test_images)
         
 
     def update_ae(self):
