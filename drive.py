@@ -20,6 +20,7 @@ parser.add_argument("--vae", help="File to load VAE from", default="")
 parser.add_argument("--existing_model", help="Continue training an existing model", default="")
 parser.add_argument("--train", help="Train the model", default=True)
 parser.add_argument("--max_episode_length", help="Max steps in episode", default=1000)
+parser.add_argument("--episodes", help="How many episodes", default=1000, type=int)
 
 parser.add_argument("--env_type", help="Is this DonkeyCar or DonkeySim", default="DonkeySim")
 parser.add_argument("--car_name", help="Name of the car on Mqtt-server", default="Kari")
@@ -33,10 +34,10 @@ args = parser.parse_args()
 sac_params = {
         "linear_output": (VAE_OUTPUT + 2 + COMMAND_HISTORY_LENGTH * 2) * FRAME_STACK
 ,
-        "lr": 0.0003,
+        "lr": 0.0002,
         "target_entropy": -2,
-        "batch_size": 64,
-        "hidden_size": 64
+        "batch_size": 128,
+        "hidden_size": 100
         
         }
 
@@ -57,8 +58,11 @@ action_space = spaces.Box(
     low=np.array([STEER_LIMIT_LEFT, THROTTLE_MIN]), 
     high=np.array([STEER_LIMIT_RIGHT, THROTTLE_MAX]), dtype=np.float32)
 
+timestamp = datetime.datetime.today().isoformat()
+model_name = "./trained_models/sac/SAC_{}.pth".format(timestamp)
 
-model_name = "./trained_models/sac/SAC_{}.pth".format(datetime.datetime.today().isoformat())
+with open("./records/log_sac_{}.csv".format(timestamp), "w+") as f:
+    f.write("Episode;Reward;Time\n")
 
 def enforce_limits(action, prev_steering):
      var = (THROTTLE_MAX - THROTTLE_MIN) / 2
@@ -71,7 +75,7 @@ def enforce_limits(action, prev_steering):
      #print("Prev steering: {:.2f}, Steering min: {:.2f}, Steering max: {:.2f}, Action: {:.2f}, Steering: {:.2f}".format(prev_steering, steering_min, steering_max, action[0], steering))
      return [steering, action[1] * var + mu]
 
-for e in range(10000):
+for e in range(args.episodes):
 
     
     episode_reward = 0
@@ -114,7 +118,7 @@ for e in range(10000):
             embedding = vae.embed(obs)
             state_action = np.hstack((embedding, action, command_history))
 
-            next_state = np.hstack([state_action, state[:(VAE_OUTPUT + 2) * (FRAME_STACK - 1)]])
+            next_state = np.hstack([state_action, state[:(VAE_OUTPUT + 2 + COMMAND_HISTORY_LENGTH * 2) * (FRAME_STACK - 1)]])
 
             agent.push_buffer([state, action, [reward], next_state, [float (not done)]])
 
@@ -136,8 +140,11 @@ for e in range(10000):
             interrupted = 1
             continue
 
+    with open("./records/log_sac_{}.csv".format(timestamp), "a+") as f:
+        f.write("{};{};{}\n".format(e, episode_reward, datetime.datetime.today().isoformat()))  
+
     env.step((0,0))
-    time.sleep(1)
+    time.sleep(2)
     env.step((0,0.01))
 
     print("Traning SAC")

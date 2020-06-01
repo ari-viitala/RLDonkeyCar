@@ -3,3 +3,5 @@
 .ipynb_checkpoints
 *.png
 *.pyc
+data/sim_images/
+data/real_images/
