@@ -11,7 +11,7 @@ from environments.donkey_car import DonkeyCar
 from environments.donkey_sim import DonkeySim
 from utils.functions import image_to_ascii
 
-from config import STEER_LIMIT_LEFT, STEER_LIMIT_RIGHT, THROTTLE_MAX, THROTTLE_MIN, MAX_STEERING_DIFF, MAX_EPISODE_STEPS, COMMAND_HISTORY_LENGTH, FRAME_STACK, VAE_OUTPUT
+from config import STEER_LIMIT_LEFT, STEER_LIMIT_RIGHT, THROTTLE_MAX, THROTTLE_MIN, MAX_STEERING_DIFF, MAX_EPISODE_STEPS, COMMAND_HISTORY_LENGTH, FRAME_STACK, VAE_OUTPUT, LR_START, LR_END, ANNEAL_END_EPISODE
 
 parser = argparse.ArgumentParser()
 
@@ -34,7 +34,7 @@ args = parser.parse_args()
 sac_params = {
         "linear_output": (VAE_OUTPUT + 2 + COMMAND_HISTORY_LENGTH * 2) * FRAME_STACK
 ,
-        "lr": 0.0002,
+        "lr": LR_START,
         "target_entropy": -2,
         "batch_size": 128,
         "hidden_size": 100
@@ -61,8 +61,13 @@ action_space = spaces.Box(
 timestamp = datetime.datetime.today().isoformat()
 model_name = "./trained_models/sac/SAC_{}.pth".format(timestamp)
 
+
 with open("./records/log_sac_{}.csv".format(timestamp), "w+") as f:
     f.write("Episode;Reward;Time\n")
+
+
+lr_step = (LR_START - LR_END) / (ANNEAL_END_EPISODE - args.random_episodes)
+        
 
 def enforce_limits(action, prev_steering):
      var = (THROTTLE_MAX - THROTTLE_MIN) / 2
@@ -147,8 +152,14 @@ for e in range(args.episodes):
     time.sleep(2)
     env.step((0,0.01))
 
+    if e == 20:
+        agent.update_lr(0.0001)
+
     print("Traning SAC")
     if e >= args.random_episodes:
+        if e < ANNEAL_END_EPISODE:
+            agent.update_lr(LR_START - lr_step * (e - args.random_episodes))
+        
         for i in range(args.training_steps):
             agent.update_parameters()
 

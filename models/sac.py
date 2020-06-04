@@ -211,3 +211,11 @@ class SAC:
         self.alpha_optimizer.load_state_dict(data["alpha_optimizer"])
         self.log_alpha = data["log_alpha"]
 
+    def update_lr(self, new_lr):
+        for param_group in self.actor_optimizer.param_groups:
+            param_group['lr'] = new_lr
+
+        for param_group in self.critic_optimizer.param_groups:
+            param_group['lr'] = new_lr
+
+        
