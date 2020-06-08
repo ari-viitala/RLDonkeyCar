@@ -60,7 +60,7 @@ for i in images[args.test_size:]:
     vae.add_image(i)
 
 for i in test_images:
-    vae.add_test_image(i)
+    vae.add_test_image(i / 255)
 
 best_loss = float("inf")
 best_epoch = 0

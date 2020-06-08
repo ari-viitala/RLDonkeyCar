@@ -131,7 +131,7 @@ for e in range(args.episodes):
             episode_reward += reward
             t2 = time.time_ns()
 
-            image_to_ascii(obs, 20)
+            image_to_ascii(obs * 255, 20)
 
             print("Episode: {}, Step: {}, Reward: {:.2f}, Episode reward: {:.2f}, Time: {:.2f}".format(e, step, reward, episode_reward, (t2 - t1) / 1e6))
             t1 = t2
