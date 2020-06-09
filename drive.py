@@ -93,7 +93,8 @@ for e in range(args.episodes):
 
     obs = env.reset()
 
-    embedding = vae.embed(obs)
+    #embedding = vae.embed(obs)
+    embedding = np.dot(obs, [0.299, 0.587, 0.114])[-1:,::4]
     action = [0, 0]
 
     state_action = np.hstack((embedding, action, command_history))
@@ -120,7 +121,9 @@ for e in range(args.episodes):
             
             reward = 1 if not done else -10
 
-            embedding = vae.embed(obs)
+            #embedding = vae.embed(obs)
+            embedding = np.dot(obs, [0.299, 0.587, 0.114])[-1:,:]
+    
             state_action = np.hstack((embedding, action, command_history))
 
             next_state = np.hstack([state_action, state[:(VAE_OUTPUT + 2 + COMMAND_HISTORY_LENGTH * 2) * (FRAME_STACK - 1)]])
