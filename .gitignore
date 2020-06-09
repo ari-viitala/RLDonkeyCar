@@ -5,3 +5,4 @@
 *.pyc
 data/sim_images/
 data/real_images/
+!/analysis/*
