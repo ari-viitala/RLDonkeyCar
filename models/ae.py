@@ -7,25 +7,40 @@ import cv2
 
 import random
 
-from modules import Encoder, Decoder
+from .modules import Encoder, Decoder
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class AE:
     
-    def __init__(self, image_size=40, linear_input=1000, linear_output=32, lr=0.001, batch_size=64, image_channels=3, encoder_type="vae"):
+    def __init__(self, parameters = {}):
 
-        self.encoder = Encoder(image_size, linear_input, linear_output, image_channels).to(device)
-        self.decoder = Decoder(image_size, linear_input, linear_output, image_channels).to(device)
+        params = {
+            "framestack": 2,
+            "output": 32,
+            "linear_input": 500,
+            "image_size": 40,
+            "lr": 0.001,
+            "image_channels": 3,
+            "encoder_type": "vae"
+        }
 
-        self.encoder_target = Encoder(image_size, linear_input, linear_output, image_channel).to(device)
-        self.linear_output = linear_output  
-        self.batch_size = batch_size
-        self.lr = lr
-        self.image_size = image_size
-        self.image_channels = image_channels
-        self.type = encoder_type
+        for p in parameters.keys():
+            params[p] = parameters[p]
 
+        self.framestack = params["framestack"]
+        self.image_size = params["image_size"]
+        self.linear_output = params["output"]
+        self.linear_input = params["linear_input"]
+        self.lr = params["lr"]
+        self.image_channels = params["image_channels"]
+        self.type = params["encoder_type"]
+     
+        self.encoder = Encoder(self.image_size, self.linear_input, self.linear_output, self.image_channels * self.framestack).to(device)
+        self.decoder = Decoder(self.image_size, self.linear_input, self.linear_output, self.image_channels * self.framestack).to(device)
+
+        self.encoder_target = Encoder(self.image_size, self.linear_input, self.linear_output, self.image_channels * self.framestack).to(device)
+        
         parameters = list(self.encoder.parameters()) + list(self.decoder.parameters())
         
         self.optimizer = torch.optim.Adam(parameters, lr=self.lr)
@@ -90,14 +105,15 @@ class AE:
             return cv2.resize(gs_im, (self.image_size, self.image_size))[np.newaxis, np.newaxis, :]
         else:
             gs_im = im / 255
-            return cv2.resize(gs_im, (self.image_size, self.image_size))[np.newaxis, :].reshape(1, 3, self.image_size, self.image_size)
+            return gs_im.reshape(1, 3 * self.framestack, self.image_size, self.image_size)
             
             
     def embed(self, image):
         
         im = torch.Tensor(self.process_image(image)).to(device)
         mu, log_sigma = self.encoder.forward(im)
-        return mu.detach().cpu().numpy().squeeze()
+        return mu
+        #return mu.detach().cpu().numpy().squeeze()
     
     def decode(self, embedding):
         return self.decoder(torch.FloatTensor(embedding).to(device)).detach().cpu().numpy()

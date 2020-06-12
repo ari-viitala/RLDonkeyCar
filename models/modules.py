@@ -33,7 +33,7 @@ class UnFlatten(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, image_size, linear_input, linear_output, image_channel, image_channels=3):
+    def __init__(self, image_size, linear_input, linear_output, image_channels):
         super().__init__()
         self.net = nn.Sequential(
             nn.Conv2d(in_channels=image_channels, out_channels=16, kernel_size=3, padding=1, stride=2),
@@ -64,7 +64,7 @@ class Encoder(nn.Module):
         return mu, log_sigma
 
 class Decoder(nn.Module):
-    def __init__(self, image_size, linear_input, linear_output, image_channels=1):
+    def __init__(self, image_size, linear_input, linear_output, image_channels):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(linear_output, linear_input),

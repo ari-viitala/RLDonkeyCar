@@ -13,3 +13,29 @@ VAE_OUTPUT = 32
 LR_START = 0.0003
 LR_END = 0.0001
 ANNEAL_END_EPISODE = 50
+
+IMAGE_SIZE = 40
+RGB = True
+
+PARAMS = {
+
+    "sac": {
+        "linear_output": VAE_OUTPUT + COMMAND_HISTORY_LENGTH * 2,
+        "lr": LR_START,
+        "target_entropy": -2,
+        "batch_size": 128,
+        "hidden_size": 100
+        },
+    "ae": {
+        "framestack": FRAME_STACK,
+        "output": VAE_OUTPUT,
+        "linear_input": 500,
+        "image_size": IMAGE_SIZE,
+        "lr": LR_END,
+        "image_channels": 3 if RGB else 1,
+        "encoder_type": "vae"
+
+    }
+
+}
+

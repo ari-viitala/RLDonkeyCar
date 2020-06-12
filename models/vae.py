@@ -82,7 +82,7 @@ class VAE:
     
     def __init__(self, image_size=40, linear_input=1000, linear_output=32, lr=0.001, batch_size=64, image_channels=3, encoder_type="vae"):
 
-        self.encoder = Encoder_4_Channels_Small(image_size, linear_input, linear_output, image_channels).to(device)
+        self.encoder = Encoder_4_Channels_Small(image_size, linear_input, linear_output, image_channels*framestack).to(device)
         self.decoder = Decoder_4_Channels_Small(image_size, linear_input, linear_output, image_channels).to(device)
         self.linear_output = linear_output  
         self.batch_size = batch_size

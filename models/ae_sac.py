@@ -10,15 +10,15 @@ from collections import deque
 import cv2
 import numpy as np
 
-from modules import MLP
-from ae import AE 
+from .modules import MLP
+from .ae import AE 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Actor(nn.Module):
     """ Gaussian Policy """
-    def __init__(self, input_size, act_size, hidden_size, encoder_params):
+    def __init__(self, input_size, act_size, hidden_size):
         super().__init__()
         self.act_size = act_size
         self.net = MLP(input_size, act_size * 2, hidden_size)
@@ -49,7 +49,7 @@ class Actor(nn.Module):
 
 class Critic(nn.Module):
     """ Twin Q-networks """
-    def __init__(self, input_size, hidden_size, encoder_params):
+    def __init__(self, input_size, hidden_size):
         super().__init__()
         self.net1 = MLP(input_size, 1, hidden_size)
         self.net2 = MLP(input_size, 1, hidden_size)
@@ -61,7 +61,7 @@ class Critic(nn.Module):
 class ReplayBuffer():
 
     def __init__(self, length):
-        self.buffer = deque(maxlen=self.replay_buffer_size)
+        self.buffer = deque(maxlen=length)
 
     def sample(self, amount):
         return random.sample(self.buffer, amount)
@@ -70,7 +70,7 @@ class ReplayBuffer():
         self.buffer.append(state)
 
 
-class AE_SAC(nn.Module):
+class AE_SAC:
 
     def __init__(self, parameters={}):
 
@@ -91,8 +91,8 @@ class AE_SAC(nn.Module):
             "target_entropy": -2
         }
           
-        for arg in parameters:
-            params[arg] = parameters[arg]
+        for arg in parameters["sac"].keys():
+             params[arg] = parameters["sac"][arg]
 
 
         self.gamma = params["gamma"]
@@ -111,12 +111,12 @@ class AE_SAC(nn.Module):
         self.target_entropy = params["target_entropy"]
         self.act_size = 2
 
-        self.encoder = AE()
+        self.encoder = AE(parameters["ae"])
 
-        self.critic = Critic(self.linear_output, self.act_size, self.hidden_size).to(device)
+        self.critic = Critic(self.linear_output + self.act_size, self.hidden_size).to(device)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.lr)
 
-        self.critic_target = Critic(self.linear_output, self.act_size, self.hidden_size).to(device)
+        self.critic_target = Critic(self.linear_output + self.act_size, self.hidden_size).to(device)
         for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
             target_param.data.copy_(param.data)
 
@@ -127,24 +127,33 @@ class AE_SAC(nn.Module):
         self.log_alpha = torch.zeros(1, requires_grad=True, device=device)
         self.alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=self.lr)
 
-        self.replay_buffer = ReplayBuffer(length=replay_buffer_size)
-
+        self.replay_buffer = ReplayBuffer(length=self.replay_buffer_size)
 
 
     def update_parameters(self):
 
-        k = min(self.batch_size, len(self.replay_buffer))
-        batch = random.sample(self.replay_buffer, k=k)
+        k = min(self.batch_size, len(self.replay_buffer.buffer))
+        batch = self.replay_buffer.sample(k)
 
         im = torch.FloatTensor([x[0][0] for x in batch]).to(device)
         control = torch.FloatTensor([x[0][1] for x in batch]).to(device)
+
+        next_im = torch.FloatTensor([x[3][0] for x in batch]).to(device)
+        next_control = torch.FloatTensor([x[3][1] for x in batch]).to(device)
         
-        embedding, log_sigma = self.encoder(ims)
-        state = torch.cat([embeddings, controls])
+        embedding, log_sigma = self.encoder.encoder(im)
+        next_embedding, next_log_sigma = self.encoder.encoder(next_im)
 
-        action, reward, next_state, not_done = [torch.FloatTensor(t).to(device) for t in zip(*batch[1:])]
+        state = torch.cat([embedding, control], axis=1)
+        next_state = torch.cat([next_embedding, next_control], axis=1)
 
-        self.log_alpha.exp().item()
+        print(batch[0][1])
+
+        action = torch.FloatTensor([x[1] for x in batch]).to(device)
+        reward = torch.FloatTensor([x[2] for x in batch]).to(device)
+        not_done = torch.FloatTensor([x[4] for x in batch]).to(device)
+
+        alpha = self.log_alpha.exp().item()
 
         # Update critic
 
@@ -161,12 +170,12 @@ class AE_SAC(nn.Module):
         critic_loss = q1_loss + q2_loss
 
         #encoder loss
-        encoder_loss = self.encoder.loss((embedding, log_sigma))
+        encoder_loss = self.encoder.loss(embedding, log_sigma)
 
         self.critic_optimizer.zero_grad()
         self.encoder.optimizer.zero_grad()
 
-        critic_loss.backward()
+        critic_loss.backward(retain_graph=True)
         encoder_loss.backward()
 
         self.critic_optimizer.step()
@@ -179,6 +188,7 @@ class AE_SAC(nn.Module):
         self.encoder.update_encoder_target()
 
         # Update actor
+        state = state.detach()
 
         action_new, action_new_log_prob = self.actor.sample(state)
         q1_new, q2_new = self.critic(state, action_new)
@@ -199,10 +209,12 @@ class AE_SAC(nn.Module):
 
     def select_action(self, state):
 
-        embdedding = self.encoder(torch.FloarTensor(state[0]).to(device))
-        action = torch.FloatTensor(state[1]).to(device)
-        
-        state_action = torch.cat([embedding, state])
+        embedding = self.encoder.embed(torch.FloatTensor(state[0]).to(device))
+        action = torch.FloatTensor(state[1].reshape(1, -1)).to(device)
+        print(embedding.shape)
+        print(action.shape)
+
+        state_action = torch.cat([embedding, action], axis=1)
 
         return self.actor.select_action(state_action)
 

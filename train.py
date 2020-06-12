@@ -5,13 +5,16 @@ import time
 import torch
 import numpy as np
 from gym import spaces
+import cv2
 
 from models.sac import SAC
+from models.ae_sac  import AE_SAC
 from environments.donkey_car import DonkeyCar
 from environments.donkey_sim import DonkeySim
 from utils.functions import image_to_ascii
 
-from config import STEER_LIMIT_LEFT, STEER_LIMIT_RIGHT, THROTTLE_MAX, THROTTLE_MIN, MAX_STEERING_DIFF, MAX_EPISODE_STEPS, COMMAND_HISTORY_LENGTH, FRAME_STACK, VAE_OUTPUT, LR_START, LR_END, ANNEAL_END_EPISODE, PARAMS
+from config import STEER_LIMIT_LEFT, STEER_LIMIT_RIGHT, THROTTLE_MAX, THROTTLE_MIN, MAX_STEERING_DIFF, MAX_EPISODE_STEPS, \
+                   COMMAND_HISTORY_LENGTH, FRAME_STACK, VAE_OUTPUT, LR_START, LR_END, ANNEAL_END_EPISODE, PARAMS, IMAGE_SIZE
 
 parser = argparse.ArgumentParser()
 
@@ -28,18 +31,17 @@ parser.add_argument("--mqtt_server", help="Name of the car on Mqtt-server", defa
 
 parser.add_argument("--random_episodes", help="Number of random episodes at the start", default=5, type=int)
 parser.add_argument("--training_steps", help="Number of gradient steps for SAC per episode", default=600, type=int)
-parser.add_argument("--alg", help="Algorithm to use", default="sac")
+parser.add_argument("--model", help="Algorithm to use", default="sac")
 
 args = parser.parse_args()
 
-params = PARAMS[args.alg]
+models = {"ae_sac": AE_SAC}
 
 if args.existing_model:
     agent = torch.load(args.pretrained_model)
 else:
-    agent = 
+    agent = models[args.model](PARAMS)
 
-vae = torch.load(args.vae)
 
 env = None
 if args.env_type == "DonkeySim":
@@ -83,9 +85,11 @@ for e in range(args.episodes):
     command_history = np.zeros(2*COMMAND_HISTORY_LENGTH)
 
     obs = env.reset()
+    obs = cv2.resize(obs, (IMAGE_SIZE, IMAGE_SIZE)).reshape(3, IMAGE_SIZE, IMAGE_SIZE)
     action = [0, 0]
 
-    state = np.hstack([obs for x in range(FRAME_STACK)])
+    state = np.vstack([obs for x in range(FRAME_STACK)])
+    #print(state.shape)
 
     while step < MAX_EPISODE_STEPS:
         try:
@@ -99,28 +103,31 @@ for e in range(args.episodes):
 
             limited_action = enforce_limits(action, command_history[0])
             taken_action, obs, dead = env.step(limited_action)
-
+            obs = cv2.resize(obs, (IMAGE_SIZE, IMAGE_SIZE)).reshape(3, IMAGE_SIZE, IMAGE_SIZE)
+    
             done = dead or interrupted
 
-            command_history = np.roll(command_history, 2)
-            command_history[:2] = taken_action
+            next_command_history = np.roll(command_history, 2)
+            next_command_history[:2] = taken_action
             
             reward = 1 if not done else -10
 
-            next_state = np.roll(state, 1)
-            next_state[1:] = obs
+            next_state = np.roll(state, 3)
+            print(state.shape)
+            next_state[:3, :, :] = obs
 
-            agent.push_buffer([(state, command_history), action, [reward], next_state, [float (not done)]])
+            agent.push_buffer([(state, command_history), action, [reward], (next_state, next_command_history), [float (not done)]])
 
             episode_reward += reward
             t2 = time.time_ns()
 
-            image_to_ascii(obs * 255, 20)
+            image_to_ascii(obs, 20)
 
             print("Episode: {}, Step: {}, Reward: {:.2f}, Episode reward: {:.2f}, Time: {:.2f}".format(e, step, reward, episode_reward, (t2 - t1) / 1e6))
             t1 = t2
 
             state = next_state
+            command_history = next_command_history
 
             if done:
                 break
@@ -141,8 +148,8 @@ for e in range(args.episodes):
 
     print("Traning SAC")
     if e >= args.random_episodes:
-        if e < ANNEAL_END_EPISODE:
-            agent.update_lr(LR_START - lr_step * (e - args.random_episodes))
+        #if e < ANNEAL_END_EPISODE:
+            #agent.update_lr(LR_START - lr_step * (e - args.random_episodes))
         
         for i in range(args.training_steps):
             agent.update_parameters()
