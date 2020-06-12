@@ -135,7 +135,7 @@ class SAC:
         batch = random.sample(self.replay_buffer, k=k)
         state, action, reward, next_state, not_done = [torch.FloatTensor(t).to(device) for t in zip(*batch)]
 
-        alpha = 0.1#self.log_alpha.exp().item()
+        alpha = self.log_alpha.exp().item()
 
         # Update critic
 
