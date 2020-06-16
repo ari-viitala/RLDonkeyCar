@@ -2,8 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
+from torch.utils.data import DataLoader
 import random
 import datetime
+import time
 
 from collections import deque
 
@@ -42,7 +44,7 @@ class Actor(nn.Module):
         return action, log_prob
 
     def select_action(self, state):
-        
+    
         action, _ = self.sample(state)
         
         return action[0].detach().cpu().numpy()
@@ -61,13 +63,31 @@ class Critic(nn.Module):
 class ReplayBuffer():
 
     def __init__(self, length):
+
         self.buffer = deque(maxlen=length)
 
+    def loader(self, batch_size, gradient_steps):
+        
+        size = batch_size * gradient_steps
+        seed = random.randint(0, 100000)
+        sets = [random.Random(seed).choices(x, k=size) for x in zip(*self.buffer)]
+        
+        loaders = [DataLoader(s, batch_size) for s in sets]
+        
+        return loaders
+
     def sample(self, amount):
+        
         return random.sample(self.buffer, amount)
 
     def push(self, state):
-        self.buffer.append(state)
+        im, control_history = state[0]
+        action = state[1]
+        reward = state[2]
+        next_im, next_history = state[3]
+        not_done = state[4]
+
+        self.buffer.append([torch.FloatTensor(x).to(device) for x in [im, control_history, action, reward, next_im, next_history, not_done]])
 
 
 class AE_SAC:
@@ -114,7 +134,9 @@ class AE_SAC:
         self.encoder = AE(parameters["ae"])
 
         self.critic = Critic(self.linear_output + self.act_size, self.hidden_size).to(device)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=self.lr)
+
+        critic_parameters = list(self.critic.parameters()) + list(self.encoder.encoder.parameters())
+        self.critic_optimizer = torch.optim.Adam(critic_parameters, lr=self.lr)
 
         self.critic_target = Critic(self.linear_output + self.act_size, self.hidden_size).to(device)
         for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
@@ -130,89 +152,123 @@ class AE_SAC:
         self.replay_buffer = ReplayBuffer(length=self.replay_buffer_size)
 
 
-    def update_parameters(self):
-
-        k = min(self.batch_size, len(self.replay_buffer.buffer))
-        batch = self.replay_buffer.sample(k)
-
-        im = torch.FloatTensor([x[0][0] for x in batch]).to(device)
-        control = torch.FloatTensor([x[0][1] for x in batch]).to(device)
-
-        next_im = torch.FloatTensor([x[3][0] for x in batch]).to(device)
-        next_control = torch.FloatTensor([x[3][1] for x in batch]).to(device)
+    def update_parameters(self, gradient_steps):
         
-        embedding, log_sigma = self.encoder.encoder(im)
-        next_embedding, next_log_sigma = self.encoder.encoder(next_im)
+        training_start = time.time_ns()
+#        k = min(self.batch_size, len(self.replay_buffer.buffer))
+#        batch = self.replay_buffer.sample(k)
 
-        state = torch.cat([embedding, control], axis=1)
-        next_state = torch.cat([next_embedding, next_control], axis=1)
-
-        print(batch[0][1])
-
-        action = torch.FloatTensor([x[1] for x in batch]).to(device)
-        reward = torch.FloatTensor([x[2] for x in batch]).to(device)
-        not_done = torch.FloatTensor([x[4] for x in batch]).to(device)
-
-        alpha = self.log_alpha.exp().item()
-
-        # Update critic
-
-        with torch.no_grad():
-            next_action, next_action_log_prob = self.actor.sample(next_state)
-            q1_next, q2_next = self.critic_target(next_state, next_action)
-            q_next = torch.min(q1_next, q2_next)
-            value_next = q_next - alpha * next_action_log_prob
-            q_target = reward + not_done * self.gamma * value_next
-
-        q1, q2 = self.critic(state, action)
-        q1_loss = 0.5*F.mse_loss(q1, q_target)
-        q2_loss = 0.5*F.mse_loss(q2, q_target)
-        critic_loss = q1_loss + q2_loss
-
-        #encoder loss
-        encoder_loss = self.encoder.loss(embedding, log_sigma)
-
-        self.critic_optimizer.zero_grad()
-        self.encoder.optimizer.zero_grad()
-
-        critic_loss.backward(retain_graph=True)
-        encoder_loss.backward()
-
-        self.critic_optimizer.step()
-        self.encoder.optimizer.step()
-
+        loaders = self.replay_buffer.loader(self.batch_size, gradient_steps)
+#       im, control, action, reward, next_im, next_control, not_done = [torch.FloatTensor(x).to(device) for x in zip(*batch)]
+        iters = [iter(l) for l in loaders]
         
-        for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
-            target_param.data.copy_((1.0-self.tau)*target_param.data + self.tau*param.data)
+        for i in range(len(loaders[0])):
+            #print("Step: {}".format(i))
+            step_start = time.time_ns()
+            
+            im, control, action, reward, next_im, next_control, not_done = [next(it) for it in iters]
+            
+            #print("Preprocessing: {:.2f}ms".format((time.time_ns() - time_start) / 1e6))
+            
+            embedding_start = time.time_ns()
 
-        self.encoder.update_encoder_target()
+            embedding, log_sigma = self.encoder.encoder(im)
+            state = torch.cat([embedding, control], axis=1)
+            
+            with torch.no_grad():
+                next_embedding, next_log_sigma = self.encoder.encoder_target(next_im)
+            
+            next_state = torch.cat([next_embedding, next_control], axis=1)
 
-        # Update actor
-        state = state.detach()
+            #print("Embedding: {:.2f}ms".format((time.time_ns() - embedding_start) / 1e6))
 
-        action_new, action_new_log_prob = self.actor.sample(state)
-        q1_new, q2_new = self.critic(state, action_new)
-        q_new = torch.min(q1_new, q2_new)
-        actor_loss = (alpha*action_new_log_prob - q_new).mean()
+            alpha = self.log_alpha.exp().item()
 
-        self.actor_optimizer.zero_grad()
-        actor_loss.backward()
-        self.actor_optimizer.step()
+            # Update critic
 
-        # Update alpha
+            train_start = time.time_ns()
 
-        alpha_loss = -(self.log_alpha * (action_new_log_prob + self.target_entropy).detach()).mean()
+            with torch.no_grad():
+                next_action, next_action_log_prob = self.actor.sample(next_state)
+                q1_next, q2_next = self.critic_target(next_state, next_action)
+                q_next = torch.min(q1_next, q2_next)
+                value_next = q_next - alpha * next_action_log_prob
+                q_target = reward + not_done * self.gamma * value_next
 
-        self.alpha_optimizer.zero_grad()
-        alpha_loss.backward()
-        self.alpha_optimizer.step()
+            q1, q2 = self.critic(state, action)
+            q1_loss = 0.5*F.mse_loss(q1, q_target)
+            q2_loss = 0.5*F.mse_loss(q2, q_target)
+            critic_loss = q1_loss + q2_loss
+
+            #encoder loss
+            #next_encoder_loss = self.encoder.loss(next_embedding, log_sigma) 
+
+            #loss = critic_loss + encoder_loss
+
+            self.critic_optimizer.zero_grad()
+
+            #print("Critic loss: {:.2f}".format(critic_loss.item()))
+            
+            critic_loss.backward()
+            #next_encoder_loss.backward()
+
+            self.critic_optimizer.step()
+
+            
+            embedding, log_sigma = self.encoder.encoder(im)
+            encoder_loss = self.encoder.loss(embedding, log_sigma)
+
+            self.encoder.optimizer.zero_grad()
+            
+            encoder_loss.backward()
+
+            self.encoder.optimizer.step()
+            
+            #print("Encoder loss: {:.2f}".format(encoder_loss.item()))
+            
+
+            for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
+                target_param.data.copy_((1.0-self.tau)*target_param.data + self.tau*param.data)
+
+            self.encoder.update_encoder_target()
+
+            #print("Critic training: {:.2f}ms".format((time.time_ns() -train_start)/1e6))
+
+            actor_start = time.time_ns()
+
+            # Update actor
+            state = state.detach()
+
+            action_new, action_new_log_prob = self.actor.sample(state)
+            q1_new, q2_new = self.critic(state, action_new)
+            q_new = torch.min(q1_new, q2_new)
+            actor_loss = (alpha*action_new_log_prob - q_new).mean()
+
+            self.actor_optimizer.zero_grad()
+            actor_loss.backward()
+            self.actor_optimizer.step()
+
+            # Update alpha
+
+            alpha_loss = -(self.log_alpha * (action_new_log_prob + self.target_entropy).detach()).mean()
+
+            self.alpha_optimizer.zero_grad()
+            alpha_loss.backward()
+            self.alpha_optimizer.step()
+
+            #print("Actor training: {:.2f}".format((time.time_ns() - actor_start) / 1e6))
+            #print("Total time: {:.2f}ms".format((time.time_ns() - time_start)/1e6))
+            step_time = (time.time_ns() - step_start) / 1e6
+            total_time = (time.time_ns() - training_start) / 1e9
+            print("Step: {}, Step time: {:.2f}, Total time: {:.2f}, Critic loss: {:.2f}, Encoder loss: {:.2f}, Actor loss: {:.2f}, Alpha loss: {:.2f}"
+                  .format(i, step_time, total_time, critic_loss.item(), encoder_loss.item(), actor_loss.item(), alpha))
+
 
     def select_action(self, state):
-
-        embedding = self.encoder.embed(torch.FloatTensor(state[0]).to(device))
+        #print("Selecting action")
+        embedding = self.encoder.embed(state[0])
+        #print("Embedded")
         action = torch.FloatTensor(state[1].reshape(1, -1)).to(device)
-        print(embedding.shape)
-        print(action.shape)
 
         state_action = torch.cat([embedding, action], axis=1)
 
@@ -221,28 +277,3 @@ class AE_SAC:
     def push_buffer(self, state):
         self.replay_buffer.push(state)
     
-
-#encoder
-#mlp
-
-#replay_buffer
-
-#sac
-
-  #actor
-    #encoder
-    #mlp
-
-  #critic
-    #encoder
-    #mlp
-    #mlp
-
-
-  #update
-
-    #sample replay_buffer
-    #critic_update
-    #vae_loss = critic_loss + reconstruction_loss
-
-  #generate action

@@ -167,7 +167,7 @@ for e in range(args.episodes):
             agent.update_parameters()
 
     print("Saving model")
-    torch.save(agent, model_name)
+    #torch.save(agent, model_name)
 
 
 

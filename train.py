@@ -113,7 +113,7 @@ for e in range(args.episodes):
             reward = 1 if not done else -10
 
             next_state = np.roll(state, 3)
-            print(state.shape)
+            #print(state.shape)
             next_state[:3, :, :] = obs
 
             agent.push_buffer([(state, command_history), action, [reward], (next_state, next_command_history), [float (not done)]])
@@ -143,19 +143,15 @@ for e in range(args.episodes):
     time.sleep(2)
     env.step((0,0.01))
 
-    if e == 20:
-        agent.update_lr(0.0001)
-
     print("Traning SAC")
     if e >= args.random_episodes:
         #if e < ANNEAL_END_EPISODE:
             #agent.update_lr(LR_START - lr_step * (e - args.random_episodes))
         
-        for i in range(args.training_steps):
-            agent.update_parameters()
+        agent.update_parameters(args.training_steps)
 
     print("Saving model")
-    torch.save(agent, model_name)
+    #torch.save(agent, model_name)
 
 
 

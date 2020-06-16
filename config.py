@@ -7,10 +7,10 @@ MAX_STEERING_DIFF = 0.5
 MAX_EPISODE_STEPS = 2000
 
 COMMAND_HISTORY_LENGTH = 5 
-FRAME_STACK = 2
-VAE_OUTPUT = 32
+FRAME_STACK = 3
+VAE_OUTPUT = 10
 
-LR_START = 0.0003
+LR_START = 0.0001
 LR_END = 0.0001
 ANNEAL_END_EPISODE = 50
 
@@ -29,7 +29,7 @@ PARAMS = {
     "ae": {
         "framestack": FRAME_STACK,
         "output": VAE_OUTPUT,
-        "linear_input": 500,
+        "linear_input": 100,
         "image_size": IMAGE_SIZE,
         "lr": LR_END,
         "image_channels": 3 if RGB else 1,
