@@ -8,7 +8,7 @@ MAX_EPISODE_STEPS = 2000
 
 COMMAND_HISTORY_LENGTH = 5 
 FRAME_STACK = 3
-VAE_OUTPUT = 10
+VAE_OUTPUT = 20
 
 LR_START = 0.0001
 LR_END = 0.0001
@@ -24,16 +24,17 @@ PARAMS = {
         "lr": LR_START,
         "target_entropy": -2,
         "batch_size": 128,
-        "hidden_size": 100
+        "hidden_size": 100,
+        "encoder_update_frequency": 1
         },
     "ae": {
         "framestack": FRAME_STACK,
         "output": VAE_OUTPUT,
-        "linear_input": 100,
+        "linear_input": 500,
         "image_size": IMAGE_SIZE,
-        "lr": LR_END,
+        "lr": LR_END / 10,
         "image_channels": 3 if RGB else 1,
-        "encoder_type": "vae"
+        "encoder_type": "ae"
 
     }
 

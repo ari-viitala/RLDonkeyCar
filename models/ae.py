@@ -49,7 +49,7 @@ class AE:
         self.recon_func.size_average = False
 
         self.criterion = nn.KLDivLoss()
-        self.loss = nn.MSELoss()
+        self.recon_loss = nn.MSELoss()
 
         self.tau = 0.005
 
@@ -69,18 +69,16 @@ class AE:
         return mu + std * eps
 
 
-    def loss(self, mu, log_sigma):
+    def loss(self, ims, l2_penalty=False):
         if self.type == "vae":
-            return self.vae_loss(mu, log_sigma)
+            return self.vae_loss(ims)
         elif self.type == "ae":
-            return self.ae_loss(mu, log_sigma)
+            return self.ae_loss(ims, l2_penalty)
 
 
-    def vae_loss(self, embedding, log_sigma):
+    def vae_loss(self, ims):
 
-        train_loss = 0.0
-        recon_loss = 0.0
-        test_loss = 0.0
+        mu, log_sigma = self.encoder(ims)
   
         target = ims.clone() 
         pred = self.decoder(self.sample_z(mu, log_sigma))
@@ -90,11 +88,20 @@ class AE:
             
         return loss
 
-    def ae_loss(self, mu, log_sigma):
+    def ae_loss(self, ims, l2_penalty=False):
 
-        decoder_output = self.decoder(mu)
+        encoder_output, _ = self.encoder(ims)
+        reconstruction = self.decoder(encoder_output)
 
-        loss = self.loss(inputs, decoder_output)
+        reconstruction_loss = self.recon_loss(ims, reconstruction)
+
+        loss = reconstruction_loss
+        
+        #print(encoder_output.sum(0).shape)
+
+        if l2_penalty:
+            l2_loss = 0.5 * encoder_output.pow(2).sum(1).mean()
+            loss += l2_loss
         
         return loss
 

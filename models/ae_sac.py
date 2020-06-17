@@ -131,6 +131,8 @@ class AE_SAC:
         self.target_entropy = params["target_entropy"]
         self.act_size = 2
 
+        self.encoder_update_frequency = params["encoder_update_frequency"]
+
         self.encoder = AE(parameters["ae"])
 
         self.critic = Critic(self.linear_output + self.act_size, self.hidden_size).to(device)
@@ -162,6 +164,8 @@ class AE_SAC:
 #       im, control, action, reward, next_im, next_control, not_done = [torch.FloatTensor(x).to(device) for x in zip(*batch)]
         iters = [iter(l) for l in loaders]
         
+        e_loss = 0
+
         for i in range(len(loaders[0])):
             #print("Step: {}".format(i))
             step_start = time.time_ns()
@@ -214,15 +218,16 @@ class AE_SAC:
 
             self.critic_optimizer.step()
 
-            
-            embedding, log_sigma = self.encoder.encoder(im)
-            encoder_loss = self.encoder.loss(embedding, log_sigma)
+            if i % self.encoder_update_frequency == 0:
 
-            self.encoder.optimizer.zero_grad()
-            
-            encoder_loss.backward()
+                encoder_loss = self.encoder.loss(im, l2_penalty=True)
+                self.encoder.optimizer.zero_grad()
+                encoder_loss.backward()
+                self.encoder.optimizer.step()
 
-            self.encoder.optimizer.step()
+                self.encoder.update_encoder_target()
+
+                e_loss = encoder_loss.item()
             
             #print("Encoder loss: {:.2f}".format(encoder_loss.item()))
             
@@ -230,7 +235,7 @@ class AE_SAC:
             for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
                 target_param.data.copy_((1.0-self.tau)*target_param.data + self.tau*param.data)
 
-            self.encoder.update_encoder_target()
+            
 
             #print("Critic training: {:.2f}ms".format((time.time_ns() -train_start)/1e6))
 
@@ -260,8 +265,8 @@ class AE_SAC:
             #print("Total time: {:.2f}ms".format((time.time_ns() - time_start)/1e6))
             step_time = (time.time_ns() - step_start) / 1e6
             total_time = (time.time_ns() - training_start) / 1e9
-            print("Step: {}, Step time: {:.2f}, Total time: {:.2f}, Critic loss: {:.2f}, Encoder loss: {:.2f}, Actor loss: {:.2f}, Alpha loss: {:.2f}"
-                  .format(i, step_time, total_time, critic_loss.item(), encoder_loss.item(), actor_loss.item(), alpha))
+            print("Step: {}, Step time: {:.2f}, Total time: {:.2f}, Critic loss: {:.2f}, Encoder loss: {:.2f}, Actor loss: {:.2f}, Alpha: {:.2f}"
+                  .format(i, step_time, total_time, critic_loss.item(), e_loss, actor_loss.item(), alpha))
 
 
     def select_action(self, state):
