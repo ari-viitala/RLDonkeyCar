@@ -35,12 +35,16 @@ class AE:
         self.lr = params["lr"]
         self.image_channels = params["image_channels"]
         self.type = params["encoder_type"]
+        self.l2_regularization = params["l2_regularization"]
      
         self.encoder = Encoder(self.image_size, self.linear_input, self.linear_output, self.image_channels * self.framestack).to(device)
         self.decoder = Decoder(self.image_size, self.linear_input, self.linear_output, self.image_channels * self.framestack).to(device)
 
         self.encoder_target = Encoder(self.image_size, self.linear_input, self.linear_output, self.image_channels * self.framestack).to(device)
         
+        for target_param, param in zip(self.encoder_target.parameters(), self.encoder.parameters()):
+            target_param.data.copy_(param.data)
+
         parameters = list(self.encoder.parameters()) + list(self.decoder.parameters())
         
         self.optimizer = torch.optim.Adam(parameters, lr=self.lr)
@@ -69,11 +73,11 @@ class AE:
         return mu + std * eps
 
 
-    def loss(self, ims, l2_penalty=False):
+    def loss(self, ims):
         if self.type == "vae":
             return self.vae_loss(ims)
         elif self.type == "ae":
-            return self.ae_loss(ims, l2_penalty)
+            return self.ae_loss(ims)
 
 
     def vae_loss(self, ims):
@@ -88,7 +92,7 @@ class AE:
             
         return loss
 
-    def ae_loss(self, ims, l2_penalty=False):
+    def ae_loss(self, ims):
 
         encoder_output, _ = self.encoder(ims)
         reconstruction = self.decoder(encoder_output)
@@ -99,7 +103,7 @@ class AE:
         
         #print(encoder_output.sum(0).shape)
 
-        if l2_penalty:
+        if self.l2_regularization:
             l2_loss = 0.5 * encoder_output.pow(2).sum(1).mean()
             loss += l2_loss
         
@@ -111,8 +115,7 @@ class AE:
             gs_im = np.dot(im[...,:3], [0.299, 0.587, 0.114]) / 255
             return cv2.resize(gs_im, (self.image_size, self.image_size))[np.newaxis, np.newaxis, :]
         else:
-            gs_im = im / 255
-            return gs_im.reshape(1, 3 * self.framestack, self.image_size, self.image_size)
+            return im.reshape(1, 3 * self.framestack, self.image_size, self.image_size)
             
             
     def embed(self, image):

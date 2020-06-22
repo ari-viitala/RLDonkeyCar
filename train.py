@@ -14,7 +14,7 @@ from environments.donkey_sim import DonkeySim
 from utils.functions import image_to_ascii
 
 from config import STEER_LIMIT_LEFT, STEER_LIMIT_RIGHT, THROTTLE_MAX, THROTTLE_MIN, MAX_STEERING_DIFF, MAX_EPISODE_STEPS, \
-                   COMMAND_HISTORY_LENGTH, FRAME_STACK, VAE_OUTPUT, LR_START, LR_END, ANNEAL_END_EPISODE, PARAMS, IMAGE_SIZE
+                   COMMAND_HISTORY_LENGTH, FRAME_STACK, VAE_OUTPUT, LR_START, LR_END, ANNEAL_END_EPISODE, PARAMS, IMAGE_SIZE, STEP_LENGTH
 
 parser = argparse.ArgumentParser()
 
@@ -31,7 +31,7 @@ parser.add_argument("--mqtt_server", help="Name of the car on Mqtt-server", defa
 
 parser.add_argument("--random_episodes", help="Number of random episodes at the start", default=5, type=int)
 parser.add_argument("--training_steps", help="Number of gradient steps for SAC per episode", default=600, type=int)
-parser.add_argument("--model", help="Algorithm to use", default="sac")
+parser.add_argument("--model", help="Algorithm to use", default="ae_sac")
 
 args = parser.parse_args()
 
@@ -85,7 +85,7 @@ for e in range(args.episodes):
     command_history = np.zeros(2*COMMAND_HISTORY_LENGTH)
 
     obs = env.reset()
-    obs = cv2.resize(obs, (IMAGE_SIZE, IMAGE_SIZE)).reshape(3, IMAGE_SIZE, IMAGE_SIZE)
+    obs = np.rollaxis(cv2.resize(obs, (IMAGE_SIZE, IMAGE_SIZE)) / 255, 2, 0)
     action = [0, 0]
 
     state = np.vstack([obs for x in range(FRAME_STACK)])
@@ -102,8 +102,9 @@ for e in range(args.episodes):
                 action = agent.select_action((state, command_history))
 
             limited_action = enforce_limits(action, command_history[0])
-            taken_action, obs, dead = env.step(limited_action)
-            obs = cv2.resize(obs, (IMAGE_SIZE, IMAGE_SIZE)).reshape(3, IMAGE_SIZE, IMAGE_SIZE)
+            taken_action, obs, dead = env.step(limited_action, STEP_LENGTH)
+            obs = np.rollaxis(cv2.resize(obs, (IMAGE_SIZE, IMAGE_SIZE)) / 255, 2, 0)
+
     
             done = dead or interrupted
 
@@ -121,7 +122,7 @@ for e in range(args.episodes):
             episode_reward += reward
             t2 = time.time_ns()
 
-            image_to_ascii(obs, 20)
+            image_to_ascii(obs * 255, 40)
 
             print("Episode: {}, Step: {}, Reward: {:.2f}, Episode reward: {:.2f}, Time: {:.2f}".format(e, step, reward, episode_reward, (t2 - t1) / 1e6))
             t1 = t2
@@ -139,9 +140,8 @@ for e in range(args.episodes):
     with open("./records/log_sac_{}.csv".format(timestamp), "a+") as f:
         f.write("{};{};{}\n".format(e, episode_reward, datetime.datetime.today().isoformat()))  
 
-    env.step((0,0))
+    env.step((0,0), STEP_LENGTH)
     time.sleep(2)
-    env.step((0,0.01))
 
     print("Traning SAC")
     if e >= args.random_episodes:

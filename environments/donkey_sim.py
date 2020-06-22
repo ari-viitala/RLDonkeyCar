@@ -14,10 +14,10 @@ class DonkeySim:
         self.state = self.control.observe()
         return self.state
     
-    def step(self, control):
+    def step(self, control, step_length):
         
         self.control.take_action(action=control)
-        time.sleep(0.1)
+        time.sleep(step_length)
         obs = self.control.observe()
         self.state = obs
         done = self.is_dead()

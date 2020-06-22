@@ -17,7 +17,6 @@ from .ae import AE
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
 class Actor(nn.Module):
     """ Gaussian Policy """
     def __init__(self, input_size, act_size, hidden_size):
@@ -133,11 +132,17 @@ class AE_SAC:
 
         self.encoder_update_frequency = params["encoder_update_frequency"]
 
-        self.encoder = AE(parameters["ae"])
 
         self.critic = Critic(self.linear_output + self.act_size, self.hidden_size).to(device)
 
-        critic_parameters = list(self.critic.parameters()) + list(self.encoder.encoder.parameters())
+        if params["pretrained_ae"]:
+            self.encoder = torch.load(params["pretrained_vae"])
+            self.encoder_update_frequency = 0
+            critic_parameters = list(self.critic.parameters())
+        else:
+            self.encoder = AE(parameters["ae"])
+            critic_parameters = list(self.critic.parameters()) + list(self.encoder.encoder.parameters())
+        
         self.critic_optimizer = torch.optim.Adam(critic_parameters, lr=self.lr)
 
         self.critic_target = Critic(self.linear_output + self.act_size, self.hidden_size).to(device)
@@ -218,9 +223,9 @@ class AE_SAC:
 
             self.critic_optimizer.step()
 
-            if i % self.encoder_update_frequency == 0:
+            if self.encoder_update_frequency and (i % self.encoder_update_frequency) == 0:
 
-                encoder_loss = self.encoder.loss(im, l2_penalty=True)
+                encoder_loss = self.encoder.loss(im)
                 self.encoder.optimizer.zero_grad()
                 encoder_loss.backward()
                 self.encoder.optimizer.step()
