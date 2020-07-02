@@ -25,22 +25,34 @@ class DonkeyCar:
 
         return self.state
     
-    def step(self, control):
+    def step(self, control, step_length):
         
-        control[1] = self.throttle
-        self.control.take_action(action=control)
+        steering = control[0]
+        throttle = self.throttle if control[1]> 0 else 0
+        action = [steering, throttle]
+        self.control.take_action(action=action)
 
-        time.sleep(0.1)
+        time.sleep(step_length)
         obs = self.control.observe()
         self.state = obs
         done = self.is_dead()
 
-        return control, self.state, done
+        return [steering, 0], self.state, done
 
     def is_dead(self):
-        darkness = len(self.state[(self.state > 120) * (self.state < 130)])
 
-        if darkness < 2500:
-            return 1.0
-        else:
-            return 0.0
+        crop_height = 20
+        crop_width = 20
+        threshold = 70
+        pixels_percentage = 0.2
+
+        pixels_required = (self.state.shape[1] - 2 * crop_width) * crop_height * pixels_percentage
+
+        crop = self.state[-crop_height:, crop_width:-crop_width]
+        gs = np.dot(crop, [0.299, 0.587, 0.114])
+
+        pixels = len(gs[gs < threshold])
+
+        print("Pixels: {}, Required: {}".format(pixels, pixels_required))
+        
+        return  pixels < pixels_required

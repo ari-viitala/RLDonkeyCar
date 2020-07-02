@@ -107,20 +107,18 @@ class AE:
             l2_loss = 0.5 * encoder_output.pow(2).sum(1).mean()
             loss += l2_loss
         
+            #print("Recon loss: {}, L2 loss: {}".format(reconstruction_loss.item(), l2_loss.item()))
+
         return loss
 
     def process_image(self, im):
-
-        if self.image_channels == 1:
-            gs_im = np.dot(im[...,:3], [0.299, 0.587, 0.114]) / 255
-            return cv2.resize(gs_im, (self.image_size, self.image_size))[np.newaxis, np.newaxis, :]
-        else:
-            return im.reshape(1, 3 * self.framestack, self.image_size, self.image_size)
+        return im.reshape(1, 3 * self.framestack, self.image_size, self.image_size)
             
             
     def embed(self, image):
         
-        im = torch.Tensor(self.process_image(image)).to(device)
+
+        im = torch.Tensor(image[np.newaxis, ...]).to(device)
         mu, log_sigma = self.encoder.forward(im)
         return mu
         #return mu.detach().cpu().numpy().squeeze()

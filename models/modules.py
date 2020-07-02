@@ -40,20 +40,14 @@ class Encoder(nn.Module):
             nn.ReLU(),
             nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, padding=1),
-            nn.ReLU(),
+            #nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, padding=1),
+            #nn.ReLU(),
             Flatten())
         self.mu = nn.Sequential(
-            nn.Linear(int(image_size**2/4)*32, linear_input),
-            nn.ReLU(),
-            nn.Linear(linear_input, linear_output)
+            nn.Linear(int(image_size**2/4)*32, linear_output),
         )
         self.ls = nn.Sequential(
-            nn.Linear(int(image_size**2/4)*32, linear_input),
-            nn.ReLU(),
-            nn.Linear(linear_input, linear_output)
+            nn.Linear(int(image_size**2/4)*32, linear_output),
         )
 
     def forward(self, x):
@@ -67,14 +61,10 @@ class Decoder(nn.Module):
     def __init__(self, image_size, linear_input, linear_output, image_channels):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(linear_output, linear_input),
-            nn.ReLU(),
-            nn.Linear(linear_input, 32*int(image_size**2/4)),
+            nn.Linear(linear_output, 32*int(image_size**2/4)),
             UnFlatten(32, int(image_size/2)),
-            nn.ReLU(),
-            nn.ConvTranspose2d(in_channels=32, out_channels=32, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(in_channels=32, out_channels=32, kernel_size=3, padding=1),
+            #nn.ReLU(),
+            #nn.ConvTranspose2d(in_channels=32, out_channels=32, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.ConvTranspose2d(in_channels=32, out_channels=16, kernel_size=3, padding=1),
             nn.ReLU(),

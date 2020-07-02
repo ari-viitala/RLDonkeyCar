@@ -27,7 +27,7 @@ class DonkeySim:
     def is_dead(self):
         darkness = len(self.state[(self.state > 120) * (self.state < 130)])
 
-        if darkness < 2500:
+        if darkness < 2300:
             return 1.0
         else:
             return 0.0

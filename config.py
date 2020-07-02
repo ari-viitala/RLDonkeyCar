@@ -1,22 +1,22 @@
 STEER_LIMIT_LEFT = -1
 STEER_LIMIT_RIGHT = 1
-THROTTLE_MAX = 0.051
-THROTTLE_MIN = 0.05
+THROTTLE_MAX = 0.251
+THROTTLE_MIN = 0.25
 MAX_STEERING_DIFF = 0.3
-STEP_LENGTH = 0.1
+STEP_LENGTH = 0.05
 
-MAX_EPISODE_STEPS = 2000
+MAX_EPISODE_STEPS = 1000
 
 COMMAND_HISTORY_LENGTH = 5 
 FRAME_STACK = 1
-VAE_OUTPUT = 20
+VAE_OUTPUT = 32
 
-LR_START = 0.0003
+LR_START = 0.0001
 LR_END = 0.0001
 ANNEAL_END_EPISODE = 50
 
 IMAGE_SIZE = 40
-RGB = True
+RGB = False
 
 PARAMS = {
 
@@ -32,11 +32,11 @@ PARAMS = {
     "ae": {
         "framestack": FRAME_STACK,
         "output": VAE_OUTPUT,
-        "linear_input": 500,
+        "linear_input": 100,
         "image_size": IMAGE_SIZE,
-        "lr": LR_END / 10,
+        "lr": LR_START / 10,
         "image_channels": 3 if RGB else 1,
-        "encoder_type": "ae",
+        "encoder_type": "vae",
         "batch_size": 64,
         "l2_regularization": True
     },

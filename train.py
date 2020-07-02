@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import time
+import os
 
 import torch
 import numpy as np
@@ -29,9 +30,11 @@ parser.add_argument("--env_type", help="Is this DonkeyCar or DonkeySim", default
 parser.add_argument("--car_name", help="Name of the car on Mqtt-server", default="Kari")
 parser.add_argument("--mqtt_server", help="Name of the car on Mqtt-server", default="Kari")
 
-parser.add_argument("--random_episodes", help="Number of random episodes at the start", default=5, type=int)
+parser.add_argument("--random_episodes", help="Number of random episodes at the start", default=1, type=int)
 parser.add_argument("--training_steps", help="Number of gradient steps for SAC per episode", default=600, type=int)
 parser.add_argument("--model", help="Algorithm to use", default="ae_sac")
+
+parser.add_argument("--continue_training", help="Continue training latest model", default=0, type=int)
 
 args = parser.parse_args()
 
@@ -42,12 +45,20 @@ if args.existing_model:
 else:
     agent = models[args.model](PARAMS)
 
+if args.continue_training:
+    models = sorted(os.listdir("./trained_models/sac/"))
+    if len(models) > 0:
+        print("Loading existing model {}".format(models[-1]))
+        agent = torch.load("./trained_models/sac/" + models[-1])
+    else:
+        print("No previous models, training a new one")
+
 
 env = None
 if args.env_type == "DonkeySim":
     env = DonkeySim(args.car_name)
 elif args.env_type == "DonkeyCar":
-    env = DonkeySim(args.car_name)
+    env = DonkeyCar(args.car_name)
 
 action_space = spaces.Box(
     low=np.array([STEER_LIMIT_LEFT, THROTTLE_MIN]), 
@@ -85,7 +96,7 @@ for e in range(args.episodes):
     command_history = np.zeros(2*COMMAND_HISTORY_LENGTH)
 
     obs = env.reset()
-    obs = np.rollaxis(cv2.resize(obs, (IMAGE_SIZE, IMAGE_SIZE)) / 255, 2, 0)
+    obs = agent.process_im(obs, IMAGE_SIZE)
     action = [0, 0]
 
     state = np.vstack([obs for x in range(FRAME_STACK)])
@@ -103,8 +114,8 @@ for e in range(args.episodes):
 
             limited_action = enforce_limits(action, command_history[0])
             taken_action, obs, dead = env.step(limited_action, STEP_LENGTH)
-            obs = np.rollaxis(cv2.resize(obs, (IMAGE_SIZE, IMAGE_SIZE)) / 255, 2, 0)
 
+            obs = agent.process_im(obs, IMAGE_SIZE)
     
             done = dead or interrupted
 
@@ -113,16 +124,17 @@ for e in range(args.episodes):
             
             reward = 1 if not done else -10
 
-            next_state = np.roll(state, 3)
             #print(state.shape)
-            next_state[:3, :, :] = obs
+            next_state = np.roll(state, 1)
+            #print(state.shape)
+            next_state[:1, :, :] = obs
 
             agent.push_buffer([(state, command_history), action, [reward], (next_state, next_command_history), [float (not done)]])
 
             episode_reward += reward
             t2 = time.time_ns()
 
-            image_to_ascii(obs * 255, 40)
+            image_to_ascii(obs * 80 + 140, 40)
 
             print("Episode: {}, Step: {}, Reward: {:.2f}, Episode reward: {:.2f}, Time: {:.2f}".format(e, step, reward, episode_reward, (t2 - t1) / 1e6))
             t1 = t2
@@ -140,18 +152,19 @@ for e in range(args.episodes):
     with open("./records/log_sac_{}.csv".format(timestamp), "a+") as f:
         f.write("{};{};{}\n".format(e, episode_reward, datetime.datetime.today().isoformat()))  
 
-    env.step((0,0), STEP_LENGTH)
+    #env.step((0,0), STEP_LENGTH)
+    env.step((0,0), 0)
     time.sleep(2)
 
-    print("Traning SAC")
     if e >= args.random_episodes:
         #if e < ANNEAL_END_EPISODE:
             #agent.update_lr(LR_START - lr_step * (e - args.random_episodes))
-        
+        print("Traning SAC")
         agent.update_parameters(args.training_steps)
 
-    print("Saving model")
-    #torch.save(agent, model_name)
+    if args.env_type == "DonkeyCar":
+        print("Saving model")
+        #torch.save(agent, model_name)
 
 
 

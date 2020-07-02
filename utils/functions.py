@@ -13,7 +13,9 @@ def darkness(im, threshold):
 
 def image_to_ascii(im, size):
 
-    gs_im = im_to_gs(np.rollaxis(im, 0, 3))
+    #gs_im = im_to_gs(np.rollaxis(im, 0, 3))
+    gs_im = np.clip(im[0], 0, 255)
+    #print(gs_im.shape)
     im = cv2.resize(gs_im, (size*2, size)).T
     asc = []
     chars = ["B","S","#","&","@","$","%","*","!",":","."]

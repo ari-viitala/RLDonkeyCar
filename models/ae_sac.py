@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
 from torch.utils.data import DataLoader
+
 import random
 import datetime
 import time
@@ -270,7 +271,8 @@ class AE_SAC:
             #print("Total time: {:.2f}ms".format((time.time_ns() - time_start)/1e6))
             step_time = (time.time_ns() - step_start) / 1e6
             total_time = (time.time_ns() - training_start) / 1e9
-            print("Step: {}, Step time: {:.2f}, Total time: {:.2f}, Critic loss: {:.2f}, Encoder loss: {:.2f}, Actor loss: {:.2f}, Alpha: {:.2f}"
+            if i % 50 == 0:
+                print("Step: {}, Step time: {:.2f}, Total time: {:.2f}, Critic loss: {:.2f}, Encoder loss: {:.2f}, Actor loss: {:.2f}, Alpha: {:.2f}"
                   .format(i, step_time, total_time, critic_loss.item(), e_loss, actor_loss.item(), alpha))
 
 
@@ -286,4 +288,18 @@ class AE_SAC:
 
     def push_buffer(self, state):
         self.replay_buffer.push(state)
-    
+
+    def process_im(self, im, im_size):
+        #crop
+        im = im[40:,:]
+        #greyscale
+        im = np.dot(im, [0.299, 0.587, 0.114])
+        #normalize
+        #im = (im - im.mean()) / im.std()
+        im = im / 255
+        #resize
+        im = cv2.resize(im, (im_size, im_size))[np.newaxis,...]
+        #change axis order for pytorch
+        #im = np.rollaxis(im, 2, 0)
+        
+        return im
