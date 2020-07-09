@@ -42,16 +42,21 @@ class DonkeyCar:
     def is_dead(self):
 
         crop_height = 20
-        crop_width = 20
-        threshold = 70
-        pixels_percentage = 0.2
+        crop_width = 10
+        threshold = 50
+        pixels_percentage = 0.10
 
         pixels_required = (self.state.shape[1] - 2 * crop_width) * crop_height * pixels_percentage
 
-        crop = self.state[-crop_height:, crop_width:-crop_width]
-        gs = np.dot(crop, [0.299, 0.587, 0.114])
+        #(im[:,:,0] > threshold) & (im[:,:,1] < 150) & (im[:,:,1] < 150)
 
-        pixels = len(gs[gs < threshold])
+        #crop = self.state[-crop_height:, crop_width:-crop_width]
+        #gs = np.dot(crop, [0.299, 0.587, 0.114])
+        
+        im = self.state[-crop_height:, crop_width:-crop_width]
+        gs = (im[:,:,0] > 150) & (im[:,:,1] < 150) & (im[:,:,1] < 150)
+
+        pixels = len(gs[gs])
 
         print("Pixels: {}, Required: {}".format(pixels, pixels_required))
         

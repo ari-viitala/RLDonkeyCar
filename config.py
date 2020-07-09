@@ -9,14 +9,14 @@ MAX_EPISODE_STEPS = 1000
 
 COMMAND_HISTORY_LENGTH = 5 
 FRAME_STACK = 1
-VAE_OUTPUT = 32
+VAE_OUTPUT = 20
 
 LR_START = 0.0001
 LR_END = 0.0001
 ANNEAL_END_EPISODE = 50
 
 IMAGE_SIZE = 40
-RGB = False
+RGB = True
 
 PARAMS = {
 
@@ -27,7 +27,12 @@ PARAMS = {
         "batch_size": 128,
         "hidden_size": 64,
         "encoder_update_frequency": 1,
-        "pretrained_ae": ""
+        "pretrained_ae": "",
+        #"pretrained_ae": "./trained_models/vae/vae_1.pth",
+        "image_folder": "./data/sim_images/",
+        "im_size": IMAGE_SIZE,
+        "n_images": 10000,
+        "epochs": 1000
         },
     "ae": {
         "framestack": FRAME_STACK,
@@ -41,7 +46,6 @@ PARAMS = {
         "l2_regularization": True
     },
     "pretrained_ae":{
-
     }
 
 }

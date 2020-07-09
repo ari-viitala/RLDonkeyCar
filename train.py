@@ -2,13 +2,15 @@ import argparse
 import datetime
 import time
 import os
+import random
+import copy
+
+import warnings
 
 import torch
 import numpy as np
 from gym import spaces
-import cv2
 
-from models.sac import SAC
 from models.ae_sac  import AE_SAC
 from environments.donkey_car import DonkeyCar
 from environments.donkey_sim import DonkeySim
@@ -38,7 +40,13 @@ parser.add_argument("--continue_training", help="Continue training latest model"
 
 args = parser.parse_args()
 
+warnings.filterwarnings("ignore")
+
 models = {"ae_sac": AE_SAC}
+
+timestamp = datetime.datetime.today().isoformat()
+model_name = "./trained_models/sac/SAC_{}.pth".format(timestamp)
+record_name = "./records/log_sac_{}.csv".format(timestamp)
 
 if args.existing_model:
     agent = torch.load(args.pretrained_model)
@@ -47,6 +55,7 @@ else:
 
 if args.continue_training:
     models = sorted(os.listdir("./trained_models/sac/"))
+    record_name = sorted(os.listdir("./records/"))[0]
     if len(models) > 0:
         print("Loading existing model {}".format(models[-1]))
         agent = torch.load("./trained_models/sac/" + models[-1])
@@ -64,117 +73,116 @@ action_space = spaces.Box(
     low=np.array([STEER_LIMIT_LEFT, THROTTLE_MIN]), 
     high=np.array([STEER_LIMIT_RIGHT, THROTTLE_MAX]), dtype=np.float32)
 
-timestamp = datetime.datetime.today().isoformat()
-model_name = "./trained_models/sac/SAC_{}.pth".format(timestamp)
 
-
-with open("./records/log_sac_{}.csv".format(timestamp), "w+") as f:
-    f.write("Episode;Reward;Time\n")
+if not args.continue_training:
+    with open(record_name, "w+") as f:
+        f.write("Episode;Reward;Time\n")
 
 
 lr_step = (LR_START - LR_END) / (ANNEAL_END_EPISODE - args.random_episodes)
         
 
 def enforce_limits(action, prev_steering):
-     var = (THROTTLE_MAX - THROTTLE_MIN) / 2
-     mu = (THROTTLE_MAX + THROTTLE_MIN) / 2
-     
-     steering_min = max(STEER_LIMIT_LEFT, prev_steering - MAX_STEERING_DIFF)
-     steering_max = min(STEER_LIMIT_RIGHT, prev_steering + MAX_STEERING_DIFF)
-     
-     steering = max(steering_min, min(steering_max, action[0]))
-     #print("Prev steering: {:.2f}, Steering min: {:.2f}, Steering max: {:.2f}, Action: {:.2f}, Steering: {:.2f}".format(prev_steering, steering_min, steering_max, action[0], steering))
-     return [steering, action[1] * var + mu]
-
-for e in range(args.episodes):
+    var = (THROTTLE_MAX - THROTTLE_MIN) / 2
+    mu = (THROTTLE_MAX + THROTTLE_MIN) / 2
     
-    episode_reward = 0
-    step = 0
-    done = 0.0
-    interrupted = 0
-
-    command_history = np.zeros(2*COMMAND_HISTORY_LENGTH)
-
-    obs = env.reset()
-    obs = agent.process_im(obs, IMAGE_SIZE)
-    action = [0, 0]
-
-    state = np.vstack([obs for x in range(FRAME_STACK)])
-    #print(state.shape)
-
-    while step < MAX_EPISODE_STEPS:
-        try:
-            step += 1
-            t1 = time.time_ns()
-
-            if e < args.random_episodes:
-                action = action_space.sample()
-            else:
-                action = agent.select_action((state, command_history))
-
-            limited_action = enforce_limits(action, command_history[0])
-            taken_action, obs, dead = env.step(limited_action, STEP_LENGTH)
-
-            obs = agent.process_im(obs, IMAGE_SIZE)
+    steering_min = max(STEER_LIMIT_LEFT, prev_steering - MAX_STEERING_DIFF)
+    steering_max = min(STEER_LIMIT_RIGHT, prev_steering + MAX_STEERING_DIFF)
     
-            done = dead or interrupted
+    steering = max(steering_min, min(steering_max, action[0]))
+    #print("Prev steering: {:.2f}, Steering min: {:.2f}, Steering max: {:.2f}, Action: {:.2f}, Steering: {:.2f}".format(prev_steering, steering_min, steering_max, action[0], steering))
+    return [steering, action[1] * var + mu]
 
-            next_command_history = np.roll(command_history, 2)
-            next_command_history[:2] = taken_action
-            
-            reward = 1 if not done else -10
+def save_model(agent, name):
+    print("Saving model")
 
-            #print(state.shape)
-            next_state = np.roll(state, 1)
-            #print(state.shape)
-            next_state[:1, :, :] = obs
+    agent_2 = copy.deepcopy(agent)
 
-            agent.push_buffer([(state, command_history), action, [reward], (next_state, next_command_history), [float (not done)]])
+    images = len(agent.replay_buffer.buffer)
+    agent_2.replay_buffer.buffer = random.sample(agent.replay_buffer.buffer, k=min(images, 10000))
 
-            episode_reward += reward
-            t2 = time.time_ns()
+    torch.save(agent_2, model_name)
 
-            image_to_ascii(obs * 80 + 140, 40)
+try:
 
-            print("Episode: {}, Step: {}, Reward: {:.2f}, Episode reward: {:.2f}, Time: {:.2f}".format(e, step, reward, episode_reward, (t2 - t1) / 1e6))
-            t1 = t2
-
-            state = next_state
-            command_history = next_command_history
-
-            if done:
-                break
-
-        except KeyboardInterrupt:
-            interrupted = 1
-            continue
-
-    with open("./records/log_sac_{}.csv".format(timestamp), "a+") as f:
-        f.write("{};{};{}\n".format(e, episode_reward, datetime.datetime.today().isoformat()))  
-
-    #env.step((0,0), STEP_LENGTH)
-    env.step((0,0), 0)
-    time.sleep(2)
-
-    if e >= args.random_episodes:
-        #if e < ANNEAL_END_EPISODE:
-            #agent.update_lr(LR_START - lr_step * (e - args.random_episodes))
-        print("Traning SAC")
-        agent.update_parameters(args.training_steps)
-
-    if args.env_type == "DonkeyCar":
-        print("Saving model")
-        #torch.save(agent, model_name)
-
-
-
-
-
-            
-
-    
+    for e in range(args.episodes):
         
+        episode_reward = 0
+        step = 0
+        done = 0.0
+        interrupted = 0
 
+        command_history = np.zeros(2*COMMAND_HISTORY_LENGTH)
 
+        obs = env.reset()
+        obs = agent.process_im(obs, IMAGE_SIZE)
+        action = [0, 0]
 
+        state = np.vstack([obs for x in range(FRAME_STACK)])
+        #print(state.shape)
 
+        while step < MAX_EPISODE_STEPS:
+            try:
+                step += 1
+                t1 = time.time_ns()
+
+                if e < args.random_episodes:
+                    action = action_space.sample()
+                else:
+                    action = agent.select_action((state, command_history))
+
+                limited_action = enforce_limits(action, command_history[0])
+                taken_action, obs, dead = env.step(limited_action, STEP_LENGTH)
+
+                obs = agent.process_im(obs, IMAGE_SIZE)
+        
+                done = dead or interrupted
+
+                next_command_history = np.roll(command_history, 2)
+                next_command_history[:2] = taken_action
+                
+                reward = 1 if not done else -10
+
+                #print(state.shape)
+                next_state = np.roll(state, 3)
+                #print(state.shape)
+                next_state[:3, :, :] = obs
+
+                agent.push_buffer([(state, command_history), action, [reward], (next_state, next_command_history), [float (not done)]])
+
+                episode_reward += reward
+                t2 = time.time_ns()
+
+                image_to_ascii(obs *255, 40)
+
+                print("Episode: {}, Step: {}, Reward: {:.2f}, Episode reward: {:.2f}, Time: {:.2f}".format(e, step, reward, episode_reward, (t2 - t1) / 1e6))
+                t1 = t2
+
+                state = next_state
+                command_history = next_command_history
+
+                if done:
+                    break
+
+            except KeyboardInterrupt:
+                interrupted = 1
+                continue
+
+        with open(record_name, "a+") as f:
+            f.write("{};{};{}\n".format(e, episode_reward, datetime.datetime.today().isoformat()))  
+
+        #env.step((0,0), STEP_LENGTH)
+        env.step((0,0), 0)
+        time.sleep(2)
+
+        if e >= args.random_episodes:
+            #if e < ANNEAL_END_EPISODE:
+                #agent.update_lr(LR_START - lr_step * (e - args.random_episodes))
+            print("Traning SAC")
+            agent.update_parameters(args.training_steps)
+
+        #if args.env_type == "DonkeyCar":
+            #save_model(agent, model_name)
+
+except KeyboardInterrupt:
+    save_model(agent, model_name)

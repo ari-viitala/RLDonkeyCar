@@ -1,14 +1,16 @@
+import random
+import time
+import os
+
+from collections import deque
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
 from torch.utils.data import DataLoader
 
-import random
-import datetime
-import time
-
-from collections import deque
+import matplotlib.pyplot as plt
 
 import cv2
 import numpy as np
@@ -110,9 +112,9 @@ class AE_SAC:
             "linear_output": 64,
             "target_entropy": -2
         }
-          
+ 
         for arg in parameters["sac"].keys():
-             params[arg] = parameters["sac"][arg]
+            params[arg] = parameters["sac"][arg]
 
 
         self.gamma = params["gamma"]
@@ -137,8 +139,13 @@ class AE_SAC:
         self.critic = Critic(self.linear_output + self.act_size, self.hidden_size).to(device)
 
         if params["pretrained_ae"]:
-            self.encoder = torch.load(params["pretrained_vae"])
-            self.encoder_update_frequency = 0
+            if os.path.isfile(params["pretrained_ae"]):
+                self.encoder = torch.load(params["pretrained_ae"])
+            else:
+                self.encoder = AE(parameters["ae"])
+                self.pretrain_ae(params["image_folder"], params["n_images"], params["im_size"], params["pretrained_ae"], params["epochs"])
+
+            self.encoder_update_frequency = 0    
             critic_parameters = list(self.critic.parameters())
         else:
             self.encoder = AE(parameters["ae"])
@@ -162,6 +169,7 @@ class AE_SAC:
 
     def update_parameters(self, gradient_steps):
         
+        print("Buffer length: {}".format(len(self.replay_buffer.buffer)))
         training_start = time.time_ns()
 #        k = min(self.batch_size, len(self.replay_buffer.buffer))
 #        batch = self.replay_buffer.sample(k)
@@ -170,6 +178,10 @@ class AE_SAC:
 #       im, control, action, reward, next_im, next_control, not_done = [torch.FloatTensor(x).to(device) for x in zip(*batch)]
         iters = [iter(l) for l in loaders]
         
+        epoch_encoder_loss = 0
+        epoch_critic_loss = 0
+        epoch_actor_loss = 0
+
         e_loss = 0
 
         for i in range(len(loaders[0])):
@@ -180,13 +192,13 @@ class AE_SAC:
             
             #print("Preprocessing: {:.2f}ms".format((time.time_ns() - time_start) / 1e6))
             
-            embedding_start = time.time_ns()
+            #embedding_start = time.time_ns()
 
-            embedding, log_sigma = self.encoder.encoder(im)
+            embedding, _ = self.encoder.encoder(im)
             state = torch.cat([embedding, control], axis=1)
-            
+                
             with torch.no_grad():
-                next_embedding, next_log_sigma = self.encoder.encoder_target(next_im)
+                next_embedding, _ = self.encoder.encoder_target(next_im)
             
             next_state = torch.cat([next_embedding, next_control], axis=1)
 
@@ -196,7 +208,7 @@ class AE_SAC:
 
             # Update critic
 
-            train_start = time.time_ns()
+            #train_start = time.time_ns()
 
             with torch.no_grad():
                 next_action, next_action_log_prob = self.actor.sample(next_state)
@@ -245,7 +257,7 @@ class AE_SAC:
 
             #print("Critic training: {:.2f}ms".format((time.time_ns() -train_start)/1e6))
 
-            actor_start = time.time_ns()
+            #actor_start = time.time_ns()
 
             # Update actor
             state = state.detach()
@@ -271,9 +283,16 @@ class AE_SAC:
             #print("Total time: {:.2f}ms".format((time.time_ns() - time_start)/1e6))
             step_time = (time.time_ns() - step_start) / 1e6
             total_time = (time.time_ns() - training_start) / 1e9
+
+            epoch_encoder_loss += e_loss
+            epoch_critic_loss += critic_loss.item()
+            epoch_actor_loss += actor_loss.item()
+
+            epoch_size = self.batch_size * (i + 1)
+
             if i % 50 == 0:
                 print("Step: {}, Step time: {:.2f}, Total time: {:.2f}, Critic loss: {:.2f}, Encoder loss: {:.2f}, Actor loss: {:.2f}, Alpha: {:.2f}"
-                  .format(i, step_time, total_time, critic_loss.item(), e_loss, actor_loss.item(), alpha))
+                  .format(i, step_time, total_time, epoch_critic_loss / epoch_size, epoch_encoder_loss / epoch_size, epoch_actor_loss / epoch_size, alpha))
 
 
     def select_action(self, state):
@@ -293,13 +312,56 @@ class AE_SAC:
         #crop
         im = im[40:,:]
         #greyscale
-        im = np.dot(im, [0.299, 0.587, 0.114])
+        #im = np.dot(im, [0.299, 0.587, 0.114])
         #normalize
         #im = (im - im.mean()) / im.std()
         im = im / 255
         #resize
-        im = cv2.resize(im, (im_size, im_size))[np.newaxis,...]
+        im = cv2.resize(im, (im_size, im_size))#[np.newaxis,...]
         #change axis order for pytorch
-        #im = np.rollaxis(im, 2, 0)
+        im = np.rollaxis(im, 2, 0)
         
         return im
+
+
+    def pretrain_ae(self, image_folder, n_images, im_size, model_file, epochs):
+
+        files = [image_folder + x for x in os.listdir(image_folder) if "cam" in x]
+        files = random.sample(files, min(len(files), n_images))
+        images = []
+
+        print("Loading {} images".format(len(files)))
+        ims = len(files)
+        for i, file in enumerate(files):
+            os.system('clear')
+            print("Loading image {}/{}".format(i, ims))
+            im = plt.imread(file, format="jpeg")
+
+            images.append(torch.FloatTensor(self.process_im(im, im_size)).to(device))
+
+        loader = DataLoader(images, shuffle=True, batch_size=128)
+
+        try:
+
+            for e in range(epochs):
+                epoch_loss = 0
+                for i, ims in enumerate(loader):
+                
+                        encoder_loss = self.encoder.loss(ims)
+                        self.encoder.optimizer.zero_grad()
+                        encoder_loss.backward()
+                        self.encoder.optimizer.step()
+
+                        self.encoder.update_encoder_target()
+
+                        epoch_loss += encoder_loss.item()
+
+                print("Epoch: {}, Encoder loss: {}".format(e + 1, epoch_loss / len(images)))
+
+        except KeyboardInterrupt:
+            pass        
+
+            
+        torch.save(self.encoder, model_file)
+
+
