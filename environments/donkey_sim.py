@@ -25,10 +25,21 @@ class DonkeySim:
         return control, self.state, done
 
     def is_dead(self):
-        darkness = len(self.state[(self.state > 120) * (self.state < 130)])
 
-        if darkness < 2300:
-            return 1.0
-        else:
-            return 0.0
+        crop_height = 40
+        required = 0.8
+        
+        cropped = self.state[-crop_height:]
+
+        rgb = cropped[:,:,0] > cropped[:,:,2]
+
+        return rgb.sum() / (crop_height * 160) > required
+
+
+       #darkness = len(self.state[(self.state > 120) * (self.state < 130)])
+
+        #if darkness < 2300:
+        #    return 1.0
+        #else:
+        #    return 0.0
         

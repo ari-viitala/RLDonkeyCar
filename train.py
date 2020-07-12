@@ -16,7 +16,7 @@ from environments.donkey_car import DonkeyCar
 from environments.donkey_sim import DonkeySim
 from utils.functions import image_to_ascii
 
-from config import STEER_LIMIT_LEFT, STEER_LIMIT_RIGHT, THROTTLE_MAX, THROTTLE_MIN, MAX_STEERING_DIFF, MAX_EPISODE_STEPS, \
+from config import STEER_LIMIT_LEFT, STEER_LIMIT_RIGHT, THROTTLE_MAX, THROTTLE_MIN, MAX_STEERING_DIFF, MAX_EPISODE_STEPS, RGB, \
                    COMMAND_HISTORY_LENGTH, FRAME_STACK, VAE_OUTPUT, LR_START, LR_END, ANNEAL_END_EPISODE, PARAMS, IMAGE_SIZE, STEP_LENGTH
 
 parser = argparse.ArgumentParser()
@@ -35,6 +35,7 @@ parser.add_argument("--mqtt_server", help="Name of the car on Mqtt-server", defa
 parser.add_argument("--random_episodes", help="Number of random episodes at the start", default=1, type=int)
 parser.add_argument("--training_steps", help="Number of gradient steps for SAC per episode", default=600, type=int)
 parser.add_argument("--model", help="Algorithm to use", default="ae_sac")
+parser.add_argument("--record_folder", help="Folder for records", default="")
 
 parser.add_argument("--continue_training", help="Continue training latest model", default=0, type=int)
 
@@ -46,7 +47,10 @@ models = {"ae_sac": AE_SAC}
 
 timestamp = datetime.datetime.today().isoformat()
 model_name = "./trained_models/sac/SAC_{}.pth".format(timestamp)
-record_name = "./records/log_sac_{}.csv".format(timestamp)
+record_name = "./records/{}log_sac_{}.csv".format(args.record_folder, timestamp)
+
+if not os.path.isdir("./records/{}".format(args.record_folder)):
+    os.mkdir("./records/{}".format(args.record_folder))
 
 if args.existing_model:
     agent = torch.load(args.pretrained_model)
@@ -55,7 +59,8 @@ else:
 
 if args.continue_training:
     models = sorted(os.listdir("./trained_models/sac/"))
-    record_name = sorted(os.listdir("./records/"))[0]
+    record_name = sorted(os.listdir("./records/{}".format(args.record_folder)))[-1]
+    print(record_name)
     if len(models) > 0:
         print("Loading existing model {}".format(models[-1]))
         agent = torch.load("./trained_models/sac/" + models[-1])
@@ -73,6 +78,7 @@ action_space = spaces.Box(
     low=np.array([STEER_LIMIT_LEFT, THROTTLE_MIN]), 
     high=np.array([STEER_LIMIT_RIGHT, THROTTLE_MAX]), dtype=np.float32)
 
+channels = 3 if RGB else 1
 
 if not args.continue_training:
     with open(record_name, "w+") as f:
@@ -115,7 +121,7 @@ try:
         command_history = np.zeros(2*COMMAND_HISTORY_LENGTH)
 
         obs = env.reset()
-        obs = agent.process_im(obs, IMAGE_SIZE)
+        obs = agent.process_im(obs, IMAGE_SIZE, RGB)
         action = [0, 0]
 
         state = np.vstack([obs for x in range(FRAME_STACK)])
@@ -134,7 +140,7 @@ try:
                 limited_action = enforce_limits(action, command_history[0])
                 taken_action, obs, dead = env.step(limited_action, STEP_LENGTH)
 
-                obs = agent.process_im(obs, IMAGE_SIZE)
+                obs = agent.process_im(obs, IMAGE_SIZE, RGB)
         
                 done = dead or interrupted
 
@@ -144,9 +150,9 @@ try:
                 reward = 1 if not done else -10
 
                 #print(state.shape)
-                next_state = np.roll(state, 3)
+                next_state = np.roll(state, channels)
                 #print(state.shape)
-                next_state[:3, :, :] = obs
+                next_state[:channels, :, :] = obs
 
                 agent.push_buffer([(state, command_history), action, [reward], (next_state, next_command_history), [float (not done)]])
 

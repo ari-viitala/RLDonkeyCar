@@ -195,11 +195,11 @@ class AE_SAC:
             #embedding_start = time.time_ns()
 
             embedding, _ = self.encoder.encoder(im)
-            state = torch.cat([embedding, control], axis=1)
-                
+
             with torch.no_grad():
                 next_embedding, _ = self.encoder.encoder_target(next_im)
             
+            state = torch.cat([embedding, control], axis=1)
             next_state = torch.cat([next_embedding, next_control], axis=1)
 
             #print("Embedding: {:.2f}ms".format((time.time_ns() - embedding_start) / 1e6))
@@ -308,19 +308,25 @@ class AE_SAC:
     def push_buffer(self, state):
         self.replay_buffer.push(state)
 
-    def process_im(self, im, im_size):
+    def process_im(self, im, im_size, rgb):
         #crop
         im = im[40:,:]
+        im = im / 255
+        im = cv2.resize(im, (im_size, im_size))
+
+        if rgb:
+            im = np.rollaxis(im, 2, 0)
+        else:
+            im = np.dot(im, [0.299, 0.587, 0.114])[np.newaxis, ...]
+
         #greyscale
-        #im = np.dot(im, [0.299, 0.587, 0.114])
+        #
         #normalize
         #im = (im - im.mean()) / im.std()
-        im = im / 255
+
         #resize
-        im = cv2.resize(im, (im_size, im_size))#[np.newaxis,...]
         #change axis order for pytorch
-        im = np.rollaxis(im, 2, 0)
-        
+
         return im
 
 
@@ -337,7 +343,7 @@ class AE_SAC:
             print("Loading image {}/{}".format(i, ims))
             im = plt.imread(file, format="jpeg")
 
-            images.append(torch.FloatTensor(self.process_im(im, im_size)).to(device))
+            images.append(torch.FloatTensor(self.process_im(im, im_size, 0)).to(device))
 
         loader = DataLoader(images, shuffle=True, batch_size=128)
 

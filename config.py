@@ -2,10 +2,10 @@ STEER_LIMIT_LEFT = -1
 STEER_LIMIT_RIGHT = 1
 THROTTLE_MAX = 0.251
 THROTTLE_MIN = 0.25
-MAX_STEERING_DIFF = 0.3
-STEP_LENGTH = 0.05
+MAX_STEERING_DIFF = 0.2
+STEP_LENGTH = 0.1
 
-MAX_EPISODE_STEPS = 1000
+MAX_EPISODE_STEPS = 500
 
 COMMAND_HISTORY_LENGTH = 5 
 FRAME_STACK = 1
@@ -16,7 +16,7 @@ LR_END = 0.0001
 ANNEAL_END_EPISODE = 50
 
 IMAGE_SIZE = 40
-RGB = True
+RGB = False
 
 PARAMS = {
 
@@ -28,7 +28,9 @@ PARAMS = {
         "hidden_size": 64,
         "encoder_update_frequency": 1,
         "pretrained_ae": "",
+        #"pretrained_ae": "./trained_models/vae/real_vae_1_8.pth",
         #"pretrained_ae": "./trained_models/vae/vae_1.pth",
+        #"pretrained_ae": "./trained_models/vae/sim_vae_1.pth",
         "image_folder": "./data/sim_images/",
         "im_size": IMAGE_SIZE,
         "n_images": 10000,
