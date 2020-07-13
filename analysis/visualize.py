@@ -19,23 +19,26 @@ def visualize_run(folder, episodes=None, real_car=False):
     random_mean = total[total["Episode"] < 5].mean()["Reward"]
     
     
-    for i, f in enumerate(frames):
-        
-        start = datetime.datetime.fromisoformat(f["Time"].iloc[0])
-        end = datetime.datetime.fromisoformat(f["Time"].iloc[-1])
-        
-        print("Run {}, Episodes: {}, Time: {:.0f} minutes".format(
-            i + 1,
-            len(f),
-            (end - start).seconds / 60
-        ))
+    if real_car:
+        for i, f in enumerate(frames):
+
+            start = datetime.datetime.fromisoformat(f["Time"].iloc[0])
+            end = datetime.datetime.fromisoformat(f["Time"].iloc[-1])
+
+            print("Run {}, Episodes: {}, Time: {:.0f} minutes".format(
+                i + 1,
+                len(f),
+                (end - start).seconds / 60
+            ))
     
-    plt.figure(1, (10, 6))
+    plt.figure(1, (20, 6))
+    plt.subplot(1, 2, 1)
+    #plt.figure(1, (10, 6))
     for i in frames:
         #plt.scatter(i["Episode"], i["Reward"], color="k", marker="x", linewidth=0.5)
         plt.plot(i["Episode"], i["Reward"], linewidth=0.5)
-    plt.plot(total["Reward"].rolling(10).mean(), label="Average episode reward 10 episode rolling mean", linewidth=2, color = "k")
-    plt.axhline(random_mean, linestyle="--", color = "red", label="Random episode average reward")
+    plt.plot(total["Reward"].rolling(10).mean(), label="Average episode reward", linewidth=2, color = "k")
+    plt.axhline(random_mean, linestyle="--", color = "red", label="Random policy")
     
     if real_car:
         plt.axhline(150, linestyle="--", color="b", label="~ One lap")
@@ -45,11 +48,12 @@ def visualize_run(folder, episodes=None, real_car=False):
     plt.legend()
     plt.xlabel("Episode")
     plt.ylabel("Episode reward")
-    plt.show()
+    #plt.show()
     
-    plt.figure(1, (10, 6))
+    plt.subplot(1, 2, 2)
+    #plt.figure(1, (10, 6))
     for i in frames:
-        plt.scatter(i["Reward"].cumsum(), i["Reward"], linewidth=0.7, marker="x")
+        plt.plot(i["Reward"].cumsum(), i["Reward"], linewidth=0.7)
     plt.plot(total["Reward"].cumsum(), total["Reward"].rolling(10).mean(), label="Average episode reward", linewidth=2, color = "k")
     plt.axhline(random_mean, linestyle="--", color = "red", label="Random episode average reward")
     
