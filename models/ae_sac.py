@@ -131,6 +131,7 @@ class AE_SAC:
         self.im_cols = params["im_cols"]
         self.linear_output = params["linear_output"]
         self.target_entropy = params["target_entropy"]
+        self.encoder_critic_loss =  params["encoder_critic_loss_update"]
         self.act_size = 2
 
         self.encoder_update_frequency = params["encoder_update_frequency"]
@@ -149,7 +150,11 @@ class AE_SAC:
             critic_parameters = list(self.critic.parameters())
         else:
             self.encoder = AE(parameters["ae"])
-            critic_parameters = list(self.critic.parameters()) + list(self.encoder.encoder.parameters())
+            
+            if self.encoder_critic_loss:
+                critic_parameters = list(self.critic.parameters()) + self.encoder.encoder.parameters
+            else:
+                critic_parameters = list(self.critic.parameters())
         
         self.critic_optimizer = torch.optim.Adam(critic_parameters, lr=self.lr)
 
@@ -194,7 +199,7 @@ class AE_SAC:
             
             #embedding_start = time.time_ns()
 
-            embedding, _ = self.encoder.encoder(im)
+            embedding, log_sigma = self.encoder.encoder(im)
 
             with torch.no_grad():
                 next_embedding, _ = self.encoder.encoder_target(next_im)
@@ -222,21 +227,23 @@ class AE_SAC:
             q2_loss = 0.5*F.mse_loss(q2, q_target)
             critic_loss = q1_loss + q2_loss
 
-            #encoder loss
-            #next_encoder_loss = self.encoder.loss(next_embedding, log_sigma) 
+            loss = critic_loss
 
-            #loss = critic_loss + encoder_loss
+            if self.encoder_critic_loss:
+                encoder_loss = self.encoder.loss(ims, (embedding, log_sigma))
 
-            self.critic_optimizer.zero_grad()
+                loss += encoder_loss
 
-            #print("Critic loss: {:.2f}".format(critic_loss.item()))
-            
-            critic_loss.backward()
-            #next_encoder_loss.backward()
+                e_loss = encoder_loss.item()
 
+                self.encoder.update_encoder_target()
+
+
+            self.critic_optimizer.zero_grad()       
+            loss.backward()
             self.critic_optimizer.step()
 
-            if self.encoder_update_frequency and (i % self.encoder_update_frequency) == 0:
+            if self.encoder_update_frequency and (i % self.encoder_update_frequency) == 0 and not self.encoder_critic_loss:
 
                 encoder_loss = self.encoder.loss(im)
                 self.encoder.optimizer.zero_grad()

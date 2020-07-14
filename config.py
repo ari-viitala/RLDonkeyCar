@@ -5,7 +5,7 @@ THROTTLE_MIN = 0.25
 MAX_STEERING_DIFF = 0.2
 STEP_LENGTH = 0.1
 
-MAX_EPISODE_STEPS = 500
+MAX_EPISODE_STEPS = 3000
 
 COMMAND_HISTORY_LENGTH = 5 
 FRAME_STACK = 1
@@ -27,6 +27,7 @@ PARAMS = {
         "batch_size": 128,
         "hidden_size": 64,
         "encoder_update_frequency": 1,
+        "critic_loss_encoder_update": True,
         "pretrained_ae": "",
         #"pretrained_ae": "./trained_models/vae/real_vae_1_8.pth",
         #"pretrained_ae": "./trained_models/vae/vae_1.pth",

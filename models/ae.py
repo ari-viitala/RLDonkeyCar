@@ -45,9 +45,9 @@ class AE:
         for target_param, param in zip(self.encoder_target.parameters(), self.encoder.parameters()):
             target_param.data.copy_(param.data)
 
-        parameters = list(self.encoder.parameters()) + list(self.decoder.parameters())
+        self.parameters = list(self.encoder.parameters()) + list(self.decoder.parameters())
         
-        self.optimizer = torch.optim.Adam(parameters, lr=self.lr)
+        self.optimizer = torch.optim.Adam(self.parameters, lr=self.lr)
         
         self.recon_func = nn.BCELoss()
         self.recon_func.size_average = False
@@ -73,16 +73,19 @@ class AE:
         return mu + std * eps
 
 
-    def loss(self, ims):
+    def loss(self, ims, embedding=None):
         if self.type == "vae":
-            return self.vae_loss(ims)
+            return self.vae_loss(ims, embedding)
         elif self.type == "ae":
             return self.ae_loss(ims)
 
 
-    def vae_loss(self, ims):
+    def vae_loss(self, ims, embedding=None):
 
-        mu, log_sigma = self.encoder(ims)
+        if embedding:
+            mu, log_sigma = embedding
+        else:
+            mu, log_sigma = self.encoder(ims)
   
         target = ims.clone() 
         pred = self.decoder(self.sample_z(mu, log_sigma))
