@@ -131,7 +131,7 @@ class AE_SAC:
         self.im_cols = params["im_cols"]
         self.linear_output = params["linear_output"]
         self.target_entropy = params["target_entropy"]
-        self.encoder_critic_loss =  params["encoder_critic_loss_update"]
+        self.encoder_critic_loss =  params["critic_loss_encoder_update"]
         self.act_size = 2
 
         self.encoder_update_frequency = params["encoder_update_frequency"]
@@ -152,7 +152,7 @@ class AE_SAC:
             self.encoder = AE(parameters["ae"])
             
             if self.encoder_critic_loss:
-                critic_parameters = list(self.critic.parameters()) + self.encoder.encoder.parameters
+                critic_parameters = list(self.critic.parameters()) + self.encoder.parameters
             else:
                 critic_parameters = list(self.critic.parameters())
         
@@ -230,7 +230,7 @@ class AE_SAC:
             loss = critic_loss
 
             if self.encoder_critic_loss:
-                encoder_loss = self.encoder.loss(ims, (embedding, log_sigma))
+                encoder_loss = self.encoder.loss(im, (embedding, log_sigma))
 
                 loss += encoder_loss
 
