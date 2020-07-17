@@ -36,7 +36,7 @@ def visualize_run(folder, episodes=None, real_car=False):
     #plt.figure(1, (10, 6))
     for i in frames:
         #plt.scatter(i["Episode"], i["Reward"], color="k", marker="x", linewidth=0.5)
-        plt.plot(i["Episode"], i["Reward"], linewidth=0.5)
+        plt.plot(i["Episode"], i["Reward"], linewidth=0.5, alpha=0.5)
     plt.plot(total["Reward"].rolling(10).mean(), label="Average episode reward", linewidth=2, color = "k")
     plt.axhline(random_mean, linestyle="--", color = "red", label="Random policy")
     
@@ -53,8 +53,8 @@ def visualize_run(folder, episodes=None, real_car=False):
     plt.subplot(1, 2, 2)
     #plt.figure(1, (10, 6))
     for i in frames:
-        plt.plot(i["Reward"].cumsum(), i["Reward"], linewidth=0.7)
-    plt.plot(total["Reward"].cumsum(), total["Reward"].rolling(10).mean(), label="Average episode reward", linewidth=2, color = "k")
+        plt.plot(i["Reward"].cumsum(), i["Reward"].ewm(alpha=0.6).mean() , linewidth=0.7)
+    #plt.plot(total["Reward"].cumsum(), total["Reward"].rolling(10).mean(), label="Average episode reward", linewidth=2, color = "k")
     plt.axhline(random_mean, linestyle="--", color = "red", label="Random episode average reward")
     
     if real_car:
