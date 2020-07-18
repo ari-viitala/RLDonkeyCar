@@ -151,10 +151,10 @@ class AE_SAC:
         else:
             self.encoder = AE(parameters["ae"])
             
-            if self.encoder_critic_loss:
-                critic_parameters = list(self.critic.parameters()) + self.encoder.parameters
-            else:
-                critic_parameters = list(self.critic.parameters())
+        if self.encoder_critic_loss:
+            critic_parameters = list(self.critic.parameters()) + self.encoder.parameters
+        else:
+            critic_parameters = list(self.critic.parameters())
         
         self.critic_optimizer = torch.optim.Adam(critic_parameters, lr=self.lr)
 
@@ -175,6 +175,10 @@ class AE_SAC:
     def update_parameters(self, gradient_steps):
         
         print("Buffer length: {}".format(len(self.replay_buffer.buffer)))
+
+        if len(self.replay_buffer.buffer) > 15000:
+            raise KeyboardInterrupt
+
         training_start = time.time_ns()
 #        k = min(self.batch_size, len(self.replay_buffer.buffer))
 #        batch = self.replay_buffer.sample(k)

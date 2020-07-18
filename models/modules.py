@@ -40,8 +40,8 @@ class Encoder(nn.Module):
             nn.ReLU(),
             nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1),
             nn.ReLU(),
-            #nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, padding=1),
-            #nn.ReLU(),
+            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, padding=1),
+            nn.ReLU(),
             Flatten())
         self.mu = nn.Sequential(
             nn.Linear(int(image_size**2/4)*32, linear_output),
@@ -64,8 +64,8 @@ class Decoder(nn.Module):
             nn.Linear(linear_output, 32*int(image_size**2/4)),
             UnFlatten(32, int(image_size/2)),
             nn.ReLU(),
-            #nn.ConvTranspose2d(in_channels=32, out_channels=32, kernel_size=3, padding=1),
-            #nn.ReLU(),
+            nn.ConvTranspose2d(in_channels=32, out_channels=32, kernel_size=3, padding=1),
+            nn.ReLU(),
             nn.ConvTranspose2d(in_channels=32, out_channels=16, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.ConvTranspose2d(in_channels=16, out_channels=image_channels, kernel_size=3, padding=1, stride=2, output_padding=1),

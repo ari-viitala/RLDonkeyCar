@@ -7,7 +7,7 @@ STEP_LENGTH = 0.1
 
 MAX_EPISODE_STEPS = 500
 
-COMMAND_HISTORY_LENGTH = 5 
+COMMAND_HISTORY_LENGTH = 20 
 FRAME_STACK = 1
 VAE_OUTPUT = 20
 
@@ -29,12 +29,12 @@ PARAMS = {
         "encoder_update_frequency": 1,
         "critic_loss_encoder_update": True,
         "pretrained_ae": "",
-        #"pretrained_ae": "./trained_models/vae/real_vae_1_8.pth",
+        #"pretrained_ae": "./trained_models/vae/sim_vae_full.pth",
         #"pretrained_ae": "./trained_models/vae/vae_1.pth",
         #"pretrained_ae": "./trained_models/vae/sim_vae_1.pth",
         "image_folder": "./data/sim_images/",
         "im_size": IMAGE_SIZE,
-        "n_images": 10000,
+        "n_images": 20000,
         "epochs": 1000
         },
     "ae": {

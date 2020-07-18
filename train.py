@@ -82,7 +82,7 @@ channels = 3 if RGB else 1
 
 if not args.continue_training:
     with open(record_name, "w+") as f:
-        f.write("Episode;Reward;Time\n")
+        f.write("Episode;Steps;Reward;Time\n")
 
 
 lr_step = (LR_START - LR_END) / (ANNEAL_END_EPISODE - args.random_episodes)
@@ -150,9 +150,9 @@ try:
                 reward = 1 if not done else -10
 
                 #print(state.shape)
-                next_state = np.roll(state, channels)
+                next_state = np.roll(state, channels * FRAME_STACK)
                 #print(state.shape)
-                next_state[:channels, :, :] = obs
+                next_state[:channels * FRAME_STACK, :, :] = obs
 
                 agent.push_buffer([(state, command_history), action, [reward], (next_state, next_command_history), [float (not done)]])
 
@@ -175,9 +175,10 @@ try:
                 continue
 
         with open(record_name, "a+") as f:
-            f.write("{};{};{}\n".format(e, episode_reward, datetime.datetime.today().isoformat()))  
+            f.write("{};{};{};{}\n".format(e, step, episode_reward, datetime.datetime.today().isoformat()))  
 
         #env.step((0,0), STEP_LENGTH)
+        #env.reset()
         env.step((0,0), 0)
         time.sleep(2)
 
