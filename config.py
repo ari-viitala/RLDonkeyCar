@@ -5,7 +5,7 @@ THROTTLE_MIN = 0.25
 MAX_STEERING_DIFF = 0.2
 STEP_LENGTH = 0.1
 
-MAX_EPISODE_STEPS = 2000
+MAX_EPISODE_STEPS = 500
 
 COMMAND_HISTORY_LENGTH = 20 
 FRAME_STACK = 1
@@ -26,12 +26,15 @@ PARAMS = {
         "target_entropy": -2,
         "batch_size": 128,
         "hidden_size": 64,
-        "encoder_update_frequency": 1,
-        "critic_loss_encoder_update": True,
-        "pretrained_ae": "",
+        "encoder_update_frequency": 0,
+        "critic_loss_encoder_update": False,
+        #"pretrained_ae": "",
         #"pretrained_ae": "./trained_models/vae/sim_vae_full.pth",
         #"pretrained_ae": "./trained_models/vae/vae_1.pth",
         #"pretrained_ae": "./trained_models/vae/sim_vae_1.pth",
+        #"pretrained_ae": "./trained_models/vae/good_sim_encoder.pth",
+        #"pretrained_ae": "./trained_models/vae/good_real_encoder.pth",
+        "pretrained_ae": "./trained_models/vae/good_real_encoder_night.pth",
         "image_folder": "./data/sim_images/",
         "im_size": IMAGE_SIZE,
         "n_images": 20000,
