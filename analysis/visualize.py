@@ -36,7 +36,7 @@ def visualize_run(folder, episodes=None, real_car=False):
     #plt.figure(1, (10, 6))
     for i in frames:
         #plt.scatter(i["Episode"], i["Reward"], color="k", marker="x", linewidth=0.5)
-        plt.plot(i["Episode"], i["Reward"], linewidth=0.5, alpha=0.5)
+        plt.plot(i["Episode"], i["Reward"], linewidth=0.5)
     plt.plot(total["Reward"].rolling(10).mean(), label="Average episode reward", linewidth=2, color = "k")
     plt.axhline(random_mean, linestyle="--", color = "red", label="Random policy")
     
@@ -53,7 +53,7 @@ def visualize_run(folder, episodes=None, real_car=False):
     plt.subplot(1, 2, 2)
     #plt.figure(1, (10, 6))
     for i in frames:
-        plt.plot(i["Reward"].cumsum(), i["Reward"].ewm(alpha=0.6).mean() , linewidth=0.7)
+        plt.plot(i["Reward"].cumsum(), i["Reward"], linewidth=0.7)
     #plt.plot(total["Reward"].cumsum(), total["Reward"].rolling(10).mean(), label="Average episode reward", linewidth=2, color = "k")
     plt.axhline(random_mean, linestyle="--", color = "red", label="Random episode average reward")
     
@@ -65,4 +65,45 @@ def visualize_run(folder, episodes=None, real_car=False):
     plt.xlabel("Cumulative environment steps")
     plt.ylabel("Episode reward")
     
+    plt.show()
+    
+def visualize_ewm(folder, alpha=0.05):
+    frames = [pd.read_csv(folder + x, sep=";") for x in os.listdir(folder)]
+    frames = [f for f in frames if len(f) > 0]
+    rewards = [f["Reward"] for f in frames if len(f) > 0]
+
+    steprewards = pd.concat([pd.DataFrame({"step": f["Reward"].cumsum(), "reward": f["Reward"]}) for f in frames]).sort_values("step")
+
+    ewm = steprewards["reward"].ewm(alpha=alpha).mean()
+    std = steprewards["reward"].ewm(alpha=alpha).std()
+
+    plt.figure(1, (10, 6))
+    plt.fill_between(steprewards["step"], ewm - std, ewm + std, alpha=0.2, color="k", label="Standard deviation")
+    plt.scatter(steprewards["step"], steprewards["reward"], marker="x", alpha=0.4, label="Individual episodes")
+    plt.plot(steprewards["step"], ewm, label="EWMA alpha=0.05", linewidth=2, color="red")
+    plt.xlabel("Environment steps")
+    plt.ylabel("Episode reward")
+    plt.legend(loc="upper left")
+
+    plt.show()
+    
+def visualize_ewm_time(folder, alpha=0.05):
+    frames = [pd.read_csv(folder + x, sep=";") for x in os.listdir(folder)]
+    frames = [f for f in frames if len(f) > 0]
+    
+    rewards = [f["Reward"] for f in frames if len(f) > 0]
+
+    steprewards = pd.concat([pd.DataFrame({"time": (pd.to_datetime(f["Time"]) - pd.to_datetime(f["Time"])[0]).apply(lambda x: x.seconds) / 60, "reward": f["Reward"]}) for f in frames]).sort_values("time")
+
+    ewm = steprewards["reward"].ewm(alpha=alpha).mean()
+    std = steprewards["reward"].ewm(alpha=alpha).std()
+
+    plt.figure(1, (10, 6))
+    plt.fill_between(steprewards["time"], ewm - std, ewm + std, alpha=0.2, color="k", label="Standard deviation")
+    plt.scatter(steprewards["time"], steprewards["reward"], marker="x", alpha=0.4, label="Individual episodes")
+    plt.plot(steprewards["time"], ewm, label="EWMA alpha=0.05", linewidth=2, color="red")
+    plt.xlabel("Training time (minutes)")
+    plt.ylabel("Episode reward")
+    plt.legend(loc="upper left")
+
     plt.show()
