@@ -176,7 +176,7 @@ class AE_SAC:
         
         print("Buffer length: {}".format(len(self.replay_buffer.buffer)))
 
-        if len(self.replay_buffer.buffer) > 15000:
+        if len(self.replay_buffer.buffer) > 25000:
             raise KeyboardInterrupt
 
         training_start = time.time_ns()
