@@ -125,7 +125,6 @@ try:
         action = [0, 0]
 
         state = np.vstack([obs for x in range(FRAME_STACK)])
-        #print(state.shape)
 
         while step < MAX_EPISODE_STEPS:
             try:
@@ -149,9 +148,7 @@ try:
                 
                 reward = 1 if not done else -10
 
-                #print(state.shape)
                 next_state = np.roll(state, channels * FRAME_STACK)
-                #print(state.shape)
                 next_state[:channels * FRAME_STACK, :, :] = obs
 
                 agent.push_buffer([(state, command_history), action, [reward], (next_state, next_command_history), [float (not done)]])
@@ -175,21 +172,14 @@ try:
                 continue
 
         with open(record_name, "a+") as f:
-            f.write("{};{};{};{}\n".format(e, step, episode_reward, datetime.datetime.today().isoformat()))  
+            f.write("{};{};{};{}\n".format(e, step, episode_reward, datetime.datetime.today().isoformat()))
 
-        #env.step((0,0), STEP_LENGTH)
-        #env.reset()
         env.step((0,0), 0)
         time.sleep(2)
 
         if e >= args.random_episodes:
-            #if e < ANNEAL_END_EPISODE:
-                #agent.update_lr(LR_START - lr_step * (e - args.random_episodes))
             print("Traning SAC")
             agent.update_parameters(args.training_steps)
-
-        #if args.env_type == "DonkeyCar":
-            #save_model(agent, model_name)
 
 except KeyboardInterrupt:
     save_model(agent, model_name)

@@ -1,3 +1,7 @@
+"""
+This module contains set variables used in training the model.
+"""
+
 STEER_LIMIT_LEFT = -1
 STEER_LIMIT_RIGHT = 1
 THROTTLE_MAX = 0.251
@@ -7,7 +11,7 @@ STEP_LENGTH = 0.1
 
 MAX_EPISODE_STEPS = 500
 
-COMMAND_HISTORY_LENGTH = 20 
+COMMAND_HISTORY_LENGTH = 20
 FRAME_STACK = 1
 VAE_OUTPUT = 20
 
