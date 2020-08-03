@@ -16,7 +16,7 @@ Install the required libraries using
 pip install -r requirements.txt
 ```
 
-You need to be running the Donkey Car using the remote management features as described in this (project)[https://github.com/tawnkramer/learning-to-drive-in-5-minutes].
+You need to be running the Donkey Car using the remote management features as described in this [project](https://github.com/tawnkramer/learning-to-drive-in-5-minutes).
 
 You can train a car by running command
 
