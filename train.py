@@ -1,3 +1,7 @@
+"""
+Train and drive a Donkey Car using a VAE + SAC agent
+"""
+
 import argparse
 import datetime
 import time
@@ -17,7 +21,7 @@ from environments.donkey_sim import DonkeySim
 from utils.functions import image_to_ascii
 
 from config import STEER_LIMIT_LEFT, STEER_LIMIT_RIGHT, THROTTLE_MAX, THROTTLE_MIN, MAX_STEERING_DIFF, MAX_EPISODE_STEPS, RGB, \
-                   COMMAND_HISTORY_LENGTH, FRAME_STACK, VAE_OUTPUT, LR_START, LR_END, ANNEAL_END_EPISODE, PARAMS, IMAGE_SIZE, STEP_LENGTH
+                   COMMAND_HISTORY_LENGTH, FRAME_STACK, VAE_OUTPUT, PARAMS, IMAGE_SIZE, STEP_LENGTH
 
 parser = argparse.ArgumentParser()
 
@@ -84,19 +88,18 @@ if not args.continue_training:
     with open(record_name, "w+") as f:
         f.write("Episode;Steps;Reward;Time\n")
 
-
-lr_step = (LR_START - LR_END) / (ANNEAL_END_EPISODE - args.random_episodes)
-        
-
 def enforce_limits(action, prev_steering):
+
+    """Scale the agent actions to environment limits"""
+
     var = (THROTTLE_MAX - THROTTLE_MIN) / 2
     mu = (THROTTLE_MAX + THROTTLE_MIN) / 2
-    
+
     steering_min = max(STEER_LIMIT_LEFT, prev_steering - MAX_STEERING_DIFF)
     steering_max = min(STEER_LIMIT_RIGHT, prev_steering + MAX_STEERING_DIFF)
-    
+
     steering = max(steering_min, min(steering_max, action[0]))
-    #print("Prev steering: {:.2f}, Steering min: {:.2f}, Steering max: {:.2f}, Action: {:.2f}, Steering: {:.2f}".format(prev_steering, steering_min, steering_max, action[0], steering))
+
     return [steering, action[1] * var + mu]
 
 def save_model(agent, name):
@@ -112,17 +115,21 @@ def save_model(agent, name):
 try:
 
     for e in range(args.episodes):
-        
+
         episode_reward = 0
         step = 0
         done = 0.0
         interrupted = 0
+
+        # Initialize state variables
 
         command_history = np.zeros(2*COMMAND_HISTORY_LENGTH)
 
         obs = env.reset()
         obs = agent.process_im(obs, IMAGE_SIZE, RGB)
         action = [0, 0]
+
+        # Frame stack
 
         state = np.vstack([obs for x in range(FRAME_STACK)])
 
@@ -131,27 +138,39 @@ try:
                 step += 1
                 t1 = time.time_ns()
 
+                # Select action
+
                 if e < args.random_episodes:
                     action = action_space.sample()
                 else:
                     action = agent.select_action((state, command_history))
 
+                # Scale action and step environment
+
                 limited_action = enforce_limits(action, command_history[0])
                 taken_action, obs, dead = env.step(limited_action, STEP_LENGTH)
 
                 obs = agent.process_im(obs, IMAGE_SIZE, RGB)
-        
+
                 done = dead or interrupted
+
+                # Decide reward
+
+                reward = 1 if not done else -10
+
+                # Update next state variabels
 
                 next_command_history = np.roll(command_history, 2)
                 next_command_history[:2] = taken_action
-                
-                reward = 1 if not done else -10
 
                 next_state = np.roll(state, channels * FRAME_STACK)
                 next_state[:channels * FRAME_STACK, :, :] = obs
 
-                agent.push_buffer([(state, command_history), action, [reward], (next_state, next_command_history), [float (not done)]])
+                # Add step to episode buffer
+
+                agent.push_buffer([(state, command_history), action, [reward], (next_state, next_command_history), [float(not done)]])
+
+                # Print statistics
 
                 episode_reward += reward
                 t2 = time.time_ns()
@@ -160,6 +179,8 @@ try:
 
                 print("Episode: {}, Step: {}, Reward: {:.2f}, Episode reward: {:.2f}, Time: {:.2f}".format(e, step, reward, episode_reward, (t2 - t1) / 1e6))
                 t1 = t2
+
+                # Update state variables
 
                 state = next_state
                 command_history = next_command_history
@@ -171,13 +192,20 @@ try:
                 interrupted = 1
                 continue
 
+        # Save episode statistics to file
+
         with open(record_name, "a+") as f:
             f.write("{};{};{};{}\n".format(e, step, episode_reward, datetime.datetime.today().isoformat()))
+
+        # Stop the car
 
         env.step((0,0), 0)
         time.sleep(2)
 
         if e >= args.random_episodes:
+
+            # Update agent
+
             print("Traning SAC")
             agent.update_parameters(args.training_steps)
 

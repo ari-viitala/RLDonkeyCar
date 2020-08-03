@@ -1,6 +1,8 @@
-import torch
+"""
+Collection of Pytorch modules used in SAC and AE
+"""
+
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class MLP(nn.Module):
@@ -74,5 +76,3 @@ class Decoder(nn.Module):
 
     def forward(self, x):
         return self.net(x)
-
-

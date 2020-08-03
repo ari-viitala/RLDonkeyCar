@@ -69,17 +69,17 @@ class ReplayBuffer():
         self.buffer = deque(maxlen=length)
 
     def loader(self, batch_size, gradient_steps):
-        
+
         size = batch_size * gradient_steps
         seed = random.randint(0, 100000)
         sets = [random.Random(seed).choices(x, k=size) for x in zip(*self.buffer)]
-        
+
         loaders = [DataLoader(s, batch_size) for s in sets]
-        
+
         return loaders
 
     def sample(self, amount):
-        
+
         return random.sample(self.buffer, amount)
 
     def push(self, state):
@@ -112,7 +112,7 @@ class AE_SAC:
             "linear_output": 64,
             "target_entropy": -2
         }
- 
+
         for arg in parameters["sac"].keys():
             params[arg] = parameters["sac"][arg]
 
@@ -138,6 +138,8 @@ class AE_SAC:
 
 
         self.critic = Critic(self.linear_output + self.act_size, self.hidden_size).to(device)
+
+        # Select which parameters to contain in the critic optimizer
 
         if params["pretrained_ae"]:
             if os.path.isfile(params["pretrained_ae"]):
@@ -176,48 +178,38 @@ class AE_SAC:
         
         print("Buffer length: {}".format(len(self.replay_buffer.buffer)))
 
-        if len(self.replay_buffer.buffer) > 25000:
-            raise KeyboardInterrupt
-
         training_start = time.time_ns()
-#        k = min(self.batch_size, len(self.replay_buffer.buffer))
-#        batch = self.replay_buffer.sample(k)
 
+        # Form dataset from the replay buffer
         loaders = self.replay_buffer.loader(self.batch_size, gradient_steps)
-#       im, control, action, reward, next_im, next_control, not_done = [torch.FloatTensor(x).to(device) for x in zip(*batch)]
         iters = [iter(l) for l in loaders]
-        
+
         epoch_encoder_loss = 0
         epoch_critic_loss = 0
         epoch_actor_loss = 0
-
         e_loss = 0
 
         for i in range(len(loaders[0])):
-            #print("Step: {}".format(i))
+
             step_start = time.time_ns()
-            
+
             im, control, action, reward, next_im, next_control, not_done = [next(it) for it in iters]
-            
-            #print("Preprocessing: {:.2f}ms".format((time.time_ns() - time_start) / 1e6))
-            
-            #embedding_start = time.time_ns()
+
+            # Embedd  images
 
             embedding, log_sigma = self.encoder.encoder(im)
 
             with torch.no_grad():
                 next_embedding, _ = self.encoder.encoder_target(next_im)
-            
+
+            # Form state vectors
+
             state = torch.cat([embedding, control], axis=1)
             next_state = torch.cat([next_embedding, next_control], axis=1)
 
-            #print("Embedding: {:.2f}ms".format((time.time_ns() - embedding_start) / 1e6))
-
             alpha = self.log_alpha.exp().item()
 
-            # Update critic
-
-            #train_start = time.time_ns()
+            # Calculate critic loss
 
             with torch.no_grad():
                 next_action, next_action_log_prob = self.actor.sample(next_state)
@@ -233,21 +225,25 @@ class AE_SAC:
 
             loss = critic_loss
 
+            # Calculate encoder loss
+
             if self.encoder_critic_loss:
+
                 encoder_loss = self.encoder.loss(im, (embedding, log_sigma))
-
                 loss += encoder_loss
-
                 e_loss = encoder_loss.item()
-
                 self.encoder.update_encoder_target()
 
+            # Update critic (and encoder)
 
             self.critic_optimizer.zero_grad()       
             loss.backward()
             self.critic_optimizer.step()
 
+
             if self.encoder_update_frequency and (i % self.encoder_update_frequency) == 0 and not self.encoder_critic_loss:
+                
+                #Update encoder if only VAE loss is used
 
                 encoder_loss = self.encoder.loss(im)
                 self.encoder.optimizer.zero_grad()
@@ -257,20 +253,12 @@ class AE_SAC:
                 self.encoder.update_encoder_target()
 
                 e_loss = encoder_loss.item()
-            
-            #print("Encoder loss: {:.2f}".format(encoder_loss.item()))
-            
 
             for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
                 target_param.data.copy_((1.0-self.tau)*target_param.data + self.tau*param.data)
 
-            
-
-            #print("Critic training: {:.2f}ms".format((time.time_ns() -train_start)/1e6))
-
-            #actor_start = time.time_ns()
-
             # Update actor
+
             state = state.detach()
 
             action_new, action_new_log_prob = self.actor.sample(state)
@@ -290,8 +278,8 @@ class AE_SAC:
             alpha_loss.backward()
             self.alpha_optimizer.step()
 
-            #print("Actor training: {:.2f}".format((time.time_ns() - actor_start) / 1e6))
-            #print("Total time: {:.2f}ms".format((time.time_ns() - time_start)/1e6))
+            # Print analytics
+
             step_time = (time.time_ns() - step_start) / 1e6
             total_time = (time.time_ns() - training_start) / 1e9
 
@@ -307,11 +295,9 @@ class AE_SAC:
 
 
     def select_action(self, state):
-        #print("Selecting action")
-        embedding = self.encoder.embed(state[0])
-        #print("Embedded")
-        action = torch.FloatTensor(state[1].reshape(1, -1)).to(device)
 
+        embedding = self.encoder.embed(state[0])
+        action = torch.FloatTensor(state[1].reshape(1, -1)).to(device)
         state_action = torch.cat([embedding, action], axis=1)
 
         return self.actor.select_action(state_action)
@@ -320,7 +306,9 @@ class AE_SAC:
         self.replay_buffer.push(state)
 
     def process_im(self, im, im_size, rgb):
-        #crop
+
+        """ Preprocess image for the agent. """
+
         im = im[40:,:]
         im = im / 255
         im = cv2.resize(im, (im_size, im_size))
@@ -330,18 +318,14 @@ class AE_SAC:
         else:
             im = np.dot(im, [0.299, 0.587, 0.114])[np.newaxis, ...]
 
-        #greyscale
-        #
-        #normalize
-        #im = (im - im.mean()) / im.std()
-
-        #resize
-        #change axis order for pytorch
-
         return im
 
 
     def pretrain_ae(self, image_folder, n_images, im_size, model_file, epochs):
+
+        """
+        Function for pretraining AE in the beginning of the episode using previously recorded images.
+        """
 
         files = [image_folder + x for x in os.listdir(image_folder) if "cam" in x]
         files = random.sample(files, min(len(files), n_images))
@@ -364,21 +348,19 @@ class AE_SAC:
                 epoch_loss = 0
                 for i, ims in enumerate(loader):
                 
-                        encoder_loss = self.encoder.loss(ims)
-                        self.encoder.optimizer.zero_grad()
-                        encoder_loss.backward()
-                        self.encoder.optimizer.step()
+                    encoder_loss = self.encoder.loss(ims)
+                    self.encoder.optimizer.zero_grad()
+                    encoder_loss.backward()
+                    self.encoder.optimizer.step()
 
-                        self.encoder.update_encoder_target()
+                    self.encoder.update_encoder_target()
 
-                        epoch_loss += encoder_loss.item()
+                    epoch_loss += encoder_loss.item()
 
                 print("Epoch: {}, Encoder loss: {}".format(e + 1, epoch_loss / len(images)))
 
         except KeyboardInterrupt:
             pass        
 
-            
+
         torch.save(self.encoder, model_file)
-
-
