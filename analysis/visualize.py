@@ -98,6 +98,8 @@ def visualize_ewm_time(folder, alpha=0.05):
     ewm = steprewards["reward"].ewm(alpha=alpha).mean()
     std = steprewards["reward"].ewm(alpha=alpha).std()
 
+    
+    fig, ax = plt.subplots(constrained_layout=True)
     plt.figure(1, (10, 6))
     plt.fill_between(steprewards["time"], ewm - std, ewm + std, alpha=0.2, color="k", label="Standard deviation")
     plt.scatter(steprewards["time"], steprewards["reward"], marker="x", alpha=0.4, label="Individual episodes")
@@ -107,3 +109,31 @@ def visualize_ewm_time(folder, alpha=0.05):
     plt.legend(loc="upper left")
 
     plt.show()
+    
+def visualize_ewm_both(folder, alpha):
+    
+    frames = [pd.read_csv(folder + x, sep=";") for x in os.listdir(folder)]
+    frames = [f for f in frames if len(f) > 0]
+
+    rewards = [f["Reward"] for f in frames if len(f) > 0]
+
+    steprewards = pd.concat([pd.DataFrame({"step": f["Reward"].cumsum(), "reward": f["Reward"]}) for f in frames]).sort_values("step")
+
+    ewm = steprewards["reward"].ewm(alpha=alpha).mean()
+    std = steprewards["reward"].ewm(alpha=alpha).std()
+
+
+
+    fig, ax = plt.subplots(constrained_layout=True)
+    fig.set_size_inches((10, 5))
+    ax.fill_between(steprewards["step"], ewm - std, ewm + std, alpha=0.2, color="k", label="Standard deviation")
+    ax.scatter(steprewards["step"], steprewards["reward"], marker="x", alpha=0.4, label="Individual episodes")
+    ax.plot(steprewards["step"], ewm, label="Mean", linewidth=2, color="red")
+    ax.set_xlabel("Environment steps")
+    ax.set_ylabel("Episode reward")
+    ax.legend(loc="upper left")
+
+    secax = ax.secondary_xaxis("top", functions=(lambda x: x / 600, lambda x: x * 600))
+    secax.set_xlabel("Time (min)")
+
+    #plt.show()
