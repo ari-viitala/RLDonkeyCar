@@ -1,6 +1,6 @@
-from donkeycar.gym import remote_controller
-import numpy as np
 import time
+
+from donkeycar.gym import remote_controller
 
 class DonkeyCar:
     
@@ -20,7 +20,7 @@ class DonkeyCar:
         if throttle_input:
             try:
                 self.throttle = float(throttle_input)
-            except:
+            except ValueError:
                 pass
 
         return self.state
@@ -37,7 +37,7 @@ class DonkeyCar:
         self.state = obs
         done = self.is_dead()
 
-        return [steering, 0], self.state, done
+        return self.state, done
 
     def is_dead(self):
 

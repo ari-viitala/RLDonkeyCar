@@ -29,7 +29,7 @@ class DonkeySim:
         self.state = obs
         done = self.is_dead(prev_state)
 
-        return control, self.state, done
+        return self.state, done
 
     def is_dead(self, prev_state):
 

@@ -16,8 +16,11 @@ import numpy as np
 from gym import spaces
 
 from models.ae_sac  import AE_SAC
+
 from environments.donkey_car import DonkeyCar
 from environments.donkey_sim import DonkeySim
+from environments.donkey_car_speed import DonkeyCarSpeed
+
 from utils.functions import image_to_ascii
 
 from config import STEER_LIMIT_LEFT, STEER_LIMIT_RIGHT, THROTTLE_MAX, THROTTLE_MIN, MAX_STEERING_DIFF, MAX_EPISODE_STEPS, RGB, \
@@ -75,6 +78,8 @@ if args.continue_training:
 env = None
 if args.env_type == "DonkeySim":
     env = DonkeySim(args.car_name)
+elif args.env_type == "DonkeyCarSpeed":
+    env = DonkeyCarSpeed(args.car_name)
 elif args.env_type == "DonkeyCar":
     env = DonkeyCar(args.car_name)
 
@@ -85,8 +90,12 @@ action_space = spaces.Box(
 channels = 3 if RGB else 1
 
 if not args.continue_training:
-    with open(record_name, "w+") as f:
-        f.write("Episode;Steps;Reward;Time\n")
+    if not args.env_type == "DonkeyCarSpeed":
+        with open(record_name, "w+") as f:
+            f.write("Episode;Steps;Reward;Time\n")
+    else:
+        with open(record_name, "w+") as f:
+            f.write("Episode;Step;Reward;Time;Steering;Throttle;SpeedX;SpeedY;SpeedZ;PosX;PosY;PosZ\n")
 
 def enforce_limits(action, prev_steering):
 
@@ -115,7 +124,7 @@ def save_model(agent, name):
 try:
 
     for e in range(args.episodes):
-
+        input("Press Enter to Start")
         episode_reward = 0
         step = 0
         done = 0.0
@@ -125,8 +134,8 @@ try:
 
         command_history = np.zeros(2*COMMAND_HISTORY_LENGTH)
 
-        obs = env.reset()
-        obs = agent.process_im(obs, IMAGE_SIZE, RGB)
+        img = env.reset()
+        obs = agent.process_im(img, IMAGE_SIZE, RGB)
         action = [0, 0]
 
         # Frame stack
@@ -148,20 +157,25 @@ try:
                 # Scale action and step environment
 
                 limited_action = enforce_limits(action, command_history[0])
-                taken_action, obs, dead = env.step(limited_action, STEP_LENGTH)
+                img, dead = env.step(limited_action, STEP_LENGTH)
 
-                obs = agent.process_im(obs, IMAGE_SIZE, RGB)
+                obs = agent.process_im(img, IMAGE_SIZE, RGB)
 
                 done = dead or interrupted
 
                 # Decide reward
 
-                reward = 1 if not done else -10
+                base = 1
+
+                if args.env_type == "DonkeyCarSpeed":
+                    base += (env.speed - THROTTLE_MIN) / (THROTTLE_MAX - THROTTLE_MIN)
+
+                reward = base if not done else -10 * base
 
                 # Update next state variabels
 
                 next_command_history = np.roll(command_history, 2)
-                next_command_history[:2] = taken_action
+                next_command_history[:2] = action
 
                 next_state = np.roll(state, channels * FRAME_STACK)
                 next_state[:channels * FRAME_STACK, :, :] = obs
@@ -177,7 +191,7 @@ try:
 
                 image_to_ascii(obs *255, 40)
 
-                print("Episode: {}, Step: {}, Reward: {:.2f}, Episode reward: {:.2f}, Time: {:.2f}".format(e, step, reward, episode_reward, (t2 - t1) / 1e6))
+                print("Episode: {}, Step: {}, Reward: {:.2f}, Episode reward: {:.2f}, Throttle: {:.2f}, Speed: {:.2f}, Time: {:.2f}".format(e, step, reward, episode_reward, action[1], env.speed, (t2 - t1) / 1e6))
                 t1 = t2
 
                 # Update state variables
@@ -185,22 +199,27 @@ try:
                 state = next_state
                 command_history = next_command_history
 
+                # Save episode statistics to file
+                if args.env_type == "DonkeyCarSpeed":
+                    with open(record_name, "a+") as f:
+                        f.write("{};{};{};{};{};{};{};{};{};{};{};{}\n"
+                                .format(e, step, reward, time.time(), *action, *env.state["v"], *env.state["x"]))
+
                 if done:
                     break
 
-            except KeyboardInterrupt:
+            except (KeyboardInterrupt, IndexError, NameError) as e:
                 interrupted = 1
                 continue
 
-        # Save episode statistics to file
+        if not args.env_type == "DonkeyCarSpeed":
+            with open(record_name, "a+") as f:
+                f.write("{};{};{};{}\n".format(e, step, episode_reward, datetime.datetime.today().isoformat()))
 
-        with open(record_name, "a+") as f:
-            f.write("{};{};{};{}\n".format(e, step, episode_reward, datetime.datetime.today().isoformat()))
 
         # Stop the car
 
-        env.step((0,0), 0)
-        time.sleep(2)
+        env.reset()
 
         if e >= args.random_episodes:
 
