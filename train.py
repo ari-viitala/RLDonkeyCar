@@ -132,7 +132,7 @@ try:
 
         # Initialize state variables
 
-        command_history = np.zeros(2*COMMAND_HISTORY_LENGTH)
+        command_history = np.zeros(3*COMMAND_HISTORY_LENGTH)
 
         img = env.reset()
         obs = agent.process_im(img, IMAGE_SIZE, RGB)
@@ -174,8 +174,8 @@ try:
 
                 # Update next state variabels
 
-                next_command_history = np.roll(command_history, 2)
-                next_command_history[:2] = action
+                next_command_history = np.roll(command_history, 3)
+                next_command_history[:3] = limited_action + [env.speed]
 
                 next_state = np.roll(state, channels * FRAME_STACK)
                 next_state[:channels * FRAME_STACK, :, :] = obs

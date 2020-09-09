@@ -4,7 +4,7 @@ This module contains set variables used in training the model.
 
 STEER_LIMIT_LEFT = -1
 STEER_LIMIT_RIGHT = 1
-THROTTLE_MAX = 0.5
+THROTTLE_MAX = 0.6
 THROTTLE_MIN = 0.25
 MAX_STEERING_DIFF = 0.1
 STEP_LENGTH = 0.1
@@ -25,7 +25,7 @@ RGB = False
 PARAMS = {
 
     "sac": {
-        "linear_output": VAE_OUTPUT + COMMAND_HISTORY_LENGTH * 2,
+        "linear_output": VAE_OUTPUT + COMMAND_HISTORY_LENGTH * 3,
         "lr": LR_START,
         "target_entropy": -2,
         "batch_size": 128,
