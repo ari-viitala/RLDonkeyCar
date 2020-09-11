@@ -203,7 +203,7 @@ try:
                 if args.env_type == "DonkeyCarSpeed":
                     with open(record_name, "a+") as f:
                         f.write("{};{};{};{};{};{};{};{};{};{};{};{}\n"
-                                .format(e, step, reward, time.time(), *action, *env.state["v"], *env.state["x"]))
+                                .format(e, step, reward, time.time(), *limited_action, *env.state["v"], *env.state["x"]))
 
                 if done:
                     break
