@@ -17,8 +17,8 @@ from gym import spaces
 
 from models.ae_sac  import AE_SAC
 
-from environments.donkey_car import DonkeyCar
-from environments.donkey_sim import DonkeySim
+from environments.donkey_remote_env import DonkeyRemoteEnv
+
 from environments.donkey_car_speed import DonkeyCarSpeed
 
 from utils.functions import image_to_ascii
@@ -43,6 +43,7 @@ parser.add_argument("--random_episodes", help="Number of random episodes at the 
 parser.add_argument("--training_steps", help="Number of gradient steps for SAC per episode", default=600, type=int)
 parser.add_argument("--model", help="Algorithm to use", default="ae_sac")
 parser.add_argument("--record_folder", help="Folder for records", default="")
+parser.add_argument("--realsense", action="store_true", help="The car uses realsense")
 
 parser.add_argument("--continue_training", help="Continue training latest model", default=0, type=int)
 
@@ -75,13 +76,14 @@ if args.continue_training:
         print("No previous models, training a new one")
 
 
-env = None
-if args.env_type == "DonkeySim":
-    env = DonkeySim(args.car_name)
-elif args.env_type == "DonkeyCarSpeed":
-    env = DonkeyCarSpeed(args.car_name)
-elif args.env_type == "DonkeyCar":
-    env = DonkeyCar(args.car_name)
+env = DonkeyRemoteEnv(args.car_name, realsense=args.realsense, env_type=args.env_type)
+
+# if args.env_type == "DonkeySim":
+#     env = DonkeySim(args.car_name)
+# elif args.env_type == "DonkeyCarSpeed":
+#     env = DonkeyCarSpeed(args.car_name)
+# elif args.env_type == "DonkeyCar":
+#     env = DonkeyCar(args.car_name)
 
 action_space = spaces.Box(
     low=np.array([STEER_LIMIT_LEFT, THROTTLE_MIN]), 
@@ -219,7 +221,7 @@ try:
 
         # Stop the car
 
-        env.reset()
+        env.step([0.01, 0], 0)
 
         if e >= args.random_episodes:
 
