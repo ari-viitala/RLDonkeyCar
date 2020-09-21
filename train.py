@@ -92,7 +92,7 @@ action_space = spaces.Box(
 channels = 3 if RGB else 1
 
 if not args.continue_training:
-    if not args.env_type == "DonkeyCarSpeed":
+    if not args.realsense:
         with open(record_name, "w+") as f:
             f.write("Episode;Steps;Reward;Time\n")
     else:
@@ -137,6 +137,7 @@ try:
         command_history = np.zeros(3*COMMAND_HISTORY_LENGTH)
 
         img = env.reset()
+
         obs = agent.process_im(img, IMAGE_SIZE, RGB)
         action = [0, 0]
 
@@ -202,7 +203,7 @@ try:
                 command_history = next_command_history
 
                 # Save episode statistics to file
-                if args.env_type == "DonkeyCarSpeed":
+                if args.realsense:
                     with open(record_name, "a+") as f:
                         f.write("{};{};{};{};{};{};{};{};{};{};{};{}\n"
                                 .format(e, step, reward, time.time(), *limited_action, *env.state["v"], *env.state["x"]))
@@ -210,18 +211,18 @@ try:
                 if done:
                     break
 
-            except (KeyboardInterrupt, IndexError, NameError) as e:
+            except (KeyboardInterrupt, IndexError, NameError) as errror:
                 interrupted = 1
                 continue
 
-        if not args.env_type == "DonkeyCarSpeed":
+        if not args.realsense:
             with open(record_name, "a+") as f:
                 f.write("{};{};{};{}\n".format(e, step, episode_reward, datetime.datetime.today().isoformat()))
 
 
         # Stop the car
 
-        env.step([0.01, 0], 0)
+        env.reset()
 
         if e >= args.random_episodes:
 
