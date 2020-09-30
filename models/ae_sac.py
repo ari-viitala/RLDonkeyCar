@@ -320,6 +320,22 @@ class AE_SAC:
 
         return im
 
+    def export_parameters(self):
+        params = {
+            "encoder": self.encoder.encoder.state_dict(),
+            "policy": self.actor.state_dict()
+        }
+
+        return params
+
+    def import_parameters(self, params):
+
+        self.encoder.encoder.load_state_dict(params["encoder"])
+        self.actor.load_state_dict(params["policy"])
+
+    def append_buffer(self, new_observations):
+        for state in new_observations:
+            self.push_buffer(state)
 
     def pretrain_ae(self, image_folder, n_images, im_size, model_file, epochs):
 
