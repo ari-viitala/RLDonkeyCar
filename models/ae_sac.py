@@ -337,6 +337,21 @@ class AE_SAC:
         for state in new_observations:
             self.push_buffer(state)
 
+
+            mirror_image = np.flip(state[0][0], 2).copy()
+            mirror_control = np.array([-1, 1, 1] * int(len(state[0][1]) / 3)) * np.array(state[0][1])
+            mirror_action = [state[1][0] * -1, state[1][1]]
+
+            mirror_next_image = np.flip(state[3][0], 2).copy()
+            mirror_next_control = np.array([-1, 1, 1] * int(len(state[0][1]) / 3)) * np.array(state[3][1])
+
+            #print(state[0][0].shape)
+            #print(mirror_image.shape)
+           
+
+            self.push_buffer(state)
+            self.push_buffer([[mirror_image, mirror_control], mirror_action, state[2], [mirror_next_image, mirror_next_control], state[4]])
+
     def pretrain_ae(self, image_folder, n_images, im_size, model_file, epochs):
 
         """
