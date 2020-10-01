@@ -19,6 +19,7 @@ from .modules import MLP
 from .ae import AE 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(device)
 
 class Actor(nn.Module):
     """ Gaussian Policy """
@@ -322,8 +323,8 @@ class AE_SAC:
 
     def export_parameters(self):
         params = {
-            "encoder": self.encoder.encoder.state_dict(),
-            "policy": self.actor.state_dict()
+            "encoder": self.encoder.encoder.state_dict().cpu(),
+            "policy": self.actor.state_dict().cpu()
         }
 
         return params
