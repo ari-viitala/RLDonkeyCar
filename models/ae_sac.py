@@ -323,9 +323,11 @@ class AE_SAC:
 
     def export_parameters(self):
         params = {
-            "encoder": self.encoder.encoder.state_dict().cpu(),
-            "policy": self.actor.state_dict().cpu()
+            "encoder": self.encoder.encoder.cpu().state_dict(),
+            "policy": self.actor.cpu().state_dict()
         }
+        self.encoder.encoder.to(device)
+        self.actor.to(device)
 
         return params
 
@@ -348,9 +350,6 @@ class AE_SAC:
 
             #print(state[0][0].shape)
             #print(mirror_image.shape)
-           
-
-            self.push_buffer(state)
             self.push_buffer([[mirror_image, mirror_control], mirror_action, state[2], [mirror_next_image, mirror_next_control], state[4]])
 
     def pretrain_ae(self, image_folder, n_images, im_size, model_file, epochs):
