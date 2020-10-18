@@ -132,7 +132,8 @@ class AE_SAC:
         self.im_cols = params["im_cols"]
         self.linear_output = params["linear_output"]
         self.target_entropy = params["target_entropy"]
-        self.encoder_critic_loss =  params["critic_loss_encoder_update"]
+        self.encoder_critic_loss =  params["encoder_critic_loss"]
+        self.encoder_ae_loss = params["encoder_ae_loss"]
         self.act_size = 2
 
         self.encoder_update_frequency = params["encoder_update_frequency"]
@@ -228,7 +229,7 @@ class AE_SAC:
 
             # Calculate encoder loss
 
-            if self.encoder_critic_loss:
+            if self.encoder_critic_loss and self.encoder_ae_loss:
 
                 encoder_loss = self.encoder.loss(im, (embedding, log_sigma))
                 loss += encoder_loss
@@ -242,7 +243,7 @@ class AE_SAC:
             self.critic_optimizer.step()
 
 
-            if self.encoder_update_frequency and (i % self.encoder_update_frequency) == 0 and not self.encoder_critic_loss:
+            if self.encoder_ae_loss and (i % self.encoder_update_frequency) == 0 and not self.encoder_critic_loss:
                 
                 #Update encoder if only VAE loss is used
 
