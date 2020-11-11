@@ -3,6 +3,9 @@
 .ipynb_checkpoints
 *.png
 *.pyc
+*.gif
+*.mp4
 data/sim_images/
 data/real_images/
-!/analysis/*
+records/*
+#!/analysis/*
