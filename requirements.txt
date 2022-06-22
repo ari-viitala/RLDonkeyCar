@@ -38,7 +38,7 @@ mkl-service==2.3.0
 mock==4.0.2
 more-itertools==8.3.0
 moviepy==1.0.3
-numpy==1.18.1
+numpy==1.22.0
 olefile==0.46
 packaging==20.3
 paho-mqtt==1.5.0
